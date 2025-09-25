@@ -1,0 +1,24 @@
+[project]
+name = "fish-assistant"
+version = "0.1.0"
+description = "Personal assistant that may or may not be housed in a talking fish"
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+    "faster-whisper>=1.0.3",
+    "typer>=0.12.3",
+    "numpy>=2.1.1",
+    "python-dotenv",
+    "sounddevice>=0.4.7",
+    "soundfile>=0.12.1", 
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio",
+]
+
+[project.scripts]
+fish = "assistant.cli:app"
