@@ -1,8 +1,10 @@
 import typer
+import asyncio
 from pathlib import Path
 from assistant.core.audio.devices import list_input_devices, get_default_input_index
 from assistant.core.audio.recorder import record_wav, playback_wav
 from assistant.core.stt.whisper_adapter import transcribe_file
+from assistant.app import main as app_main
 
 app = typer.Typer(help="Fish Assistant CLI")
 
@@ -44,6 +46,11 @@ def demo_record_and_transcribe(
         playback_wav(res.path)
     text = transcribe_file(res.path, model_size=model_size)
     typer.echo(f"[transcript] {text}")
+
+@app.command("run")
+def run_assistant():
+    """Run the Fish Assistant in interactive mode."""
+    asyncio.run(app_main())
 
 if __name__ == "__main__":
     app()
