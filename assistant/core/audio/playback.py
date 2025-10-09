@@ -40,17 +40,22 @@ class Playback:
 
             # blocking wait 
             await asyncio.to_thread(sd.wait)
-            await asyncio.sleep(3.0)
             self.log.debug("Playback finished.")
 
         except Exception:
             self.log.exception("failed to play %s", path)
             return
         
-        # cleanup
+        # Cleanup in worker thread
         if payload.get("cleanup"):
-            try:
-                os.remove(path)
-                self.log.debug("cleaned up: %s", path)
-            except Exception:
-                self.log.exception("failed to cleanup: %s", path)
+            await asyncio.to_thread(self._safe_cleanup, path) 
+
+    # Cleanup logic
+    def _safe_cleanup(self, path):
+        try:
+            os.remove(path)
+            self.log.debug("cleaned up: %s", path)
+        except Exception:
+            # Note: logging exception from a thread requires care, 
+            # but this synchronous approach is simpler here.
+            self.log.exception("failed to cleanup: %s", path)
