@@ -25,8 +25,19 @@ class TTS:
         self.log.info("synthesizing text (%d chars)", len(text))
         path = await asyncio.to_thread(self.adapter.synth, text)
         self.log.debug("synth complete: %s", path)
+
         await self.bus.publish("playback", {
             "path": path,
             "cleanup": True,
             "source": "tts",
         })
+
+    async def stop(self):
+        """Cleans up resources before shutdown"""
+        self.log.info("stopping TTS component")
+        # self.bus.unsubscribe("assistant.reply", self._on_reply) 
+    
+        # close adapter if possible
+        if hasattr(self.adapter, 'close') and callable(self.adapter.close):
+            # prevent blocking event loop
+            await asyncio.to_thread(self.adapter.close)

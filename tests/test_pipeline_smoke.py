@@ -1,4 +1,3 @@
-# tests/test_pipeline_smoke.py
 import asyncio
 import pytest
 

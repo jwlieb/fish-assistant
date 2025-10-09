@@ -22,22 +22,32 @@ class Playback:
         if not path or not os.path.exists(path):
             self.log.warning("missing or invalid path: %s", path)
             return
+        
         try:
+            # Gather info
             size_bytes = os.path.getsize(path)
-        except OSError:
-            size_bytes = -1
-        try:
             info = sf.info(path)
             duration = info.frames / float(info.samplerate) if info.samplerate else 0.0
-            self.log.info("playing: %s (%.2fs, %d bytes, %d Hz, %d ch)", path, duration, size_bytes, info.samplerate, info.channels)
-            # Read and play
+            self.log.info("playing: %s (%.2fs, %d bytes, %d Hz, %d ch)", 
+                          path, duration, size_bytes, info.samplerate, info.channels)
+            
+            # Read audio data (non-blocking)
             data, sr = sf.read(path, dtype="float32", always_2d=True)
-            peak = float(abs(data).max()) if data.size else 0.0
-            self.log.debug("audio peak=%.4f", peak)
-            await asyncio.to_thread(sd.play, data, sr, blocking=True)
+
+            # Non-blocking play start
+            sd.play(data, sr)
+            self.log.debug("Playback started.")
+
+            # blocking wait 
+            await asyncio.to_thread(sd.wait)
+            await asyncio.sleep(3.0)
+            self.log.debug("Playback finished.")
+
         except Exception:
             self.log.exception("failed to play %s", path)
             return
+        
+        # cleanup
         if payload.get("cleanup"):
             try:
                 os.remove(path)

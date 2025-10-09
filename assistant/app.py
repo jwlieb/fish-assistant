@@ -20,15 +20,27 @@ async def repl(bus: Bus) -> None:
     """Tiny REPL that publishes directly to assistant.reply to trigger TTS."""
     print("\n🐟 Fish Assistant Interactive Mode")
     print("Type a message to hear TTS. Type 'quit' to exit.")
+
+    loop = asyncio.get_running_loop() # get the current loop for running sync code
+
     while True:
         try:
-            user_input = input("\n> ").strip()
+            # explicit print (main thread)
+            print("\n> ", end="", flush=True)
+            # input in worker thread to keep event loop responsive
+            user_input = await asyncio.to_thread(input)
+            user_input = user_input.strip()
+
             if user_input.lower() in ["quit", "exit", "q"]:
                 break
+
             if user_input:
+                # publish event
                 await bus.publish("assistant.reply", {"text": user_input})
-                await asyncio.sleep(0.1)
+
         except KeyboardInterrupt:
+            break
+        except EOFError:
             break
 
 
