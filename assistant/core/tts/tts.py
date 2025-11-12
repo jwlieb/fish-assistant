@@ -1,11 +1,12 @@
 import asyncio
 import logging
+import soundfile as sf
 from assistant.core.tts.pyttsx3_adapter import Pyttsx3Adapter
+from assistant.core.contracts import TTSRequest, TTSAudio, same_trace
 
 class TTS:
     """
-    Listens on 'assistant.reply' with payload {'text': str}
-    Emits 'playback' with payload {'path': str, 'cleanup': bool}
+    Listens on 'tts.request' and emits 'tts.audio'.
     """
 
     def __init__(self, bus, adapter: Pyttsx3Adapter | None = None):
@@ -14,23 +15,36 @@ class TTS:
         self.log = logging.getLogger("tts")
 
     async def start(self):
-        self.bus.subscribe("assistant.reply", self._on_reply)
+        self.bus.subscribe("tts.request", self._on_request)
 
-    async def _on_reply(self, payload: dict):
-        text = (payload or {}).get("text", "").strip()
-        if not text:
-            self.log.debug("empty reply text, skipping")
+    async def _on_request(self, payload: dict):
+        try:
+            req = TTSRequest(**payload)
+        except Exception:
+            self.log.warning("malformed tts.request event, skipping")
             return
+
+        text = req.text.strip()
+        if not text:
+            self.log.debug("empty text, skipping")
+            return
+
         # run blocking synth in thread
         self.log.info("synthesizing text (%d chars)", len(text))
         path = await asyncio.to_thread(self.adapter.synth, text)
         self.log.debug("synth complete: %s", path)
 
-        await self.bus.publish("playback", {
-            "path": path,
-            "cleanup": True,
-            "source": "tts",
-        })
+        # Get duration from audio file
+        try:
+            info = sf.info(path)
+            duration_s = info.frames / float(info.samplerate) if info.samplerate else 0.01
+        except Exception:
+            self.log.warning("could not read audio duration, using 0.01")
+            duration_s = 0.01  # minimal default to satisfy contract
+
+        audio_event = TTSAudio(wav_path=path, duration_s=duration_s)
+        same_trace(req, audio_event)
+        await self.bus.publish(audio_event.topic, audio_event.dict())
 
     async def stop(self):
         """Cleans up resources before shutdown"""

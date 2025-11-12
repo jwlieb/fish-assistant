@@ -1,13 +1,25 @@
+from assistant.core.contracts import SkillRequest, SkillResponse, same_trace
+
 class EchoSkill:
     def __init__(self, bus):
         self.bus = bus
 
     async def start(self):
-        self.bus.subscribe("stt.transcript", self._on_transcript)
+        self.bus.subscribe("skill.request", self._on_request)
 
-    async def _on_transcript(self, payload: dict):
-        text = (payload or {}).get("text", "").strip()
-        if not text:
+    async def _on_request(self, payload: dict):
+        try:
+            req = SkillRequest(**payload)
+        except Exception:
             return
-        reply = f"You said: {text}"
-        await self.bus.publish("assistant.reply", {"text": reply})
+        
+        if req.skill != "echo":
+            return
+        
+        original_text = req.payload.get("original_text", "").strip()
+        if not original_text:
+            return
+        
+        resp = SkillResponse(skill="echo", say=f"You said: {original_text}")
+        same_trace(req, resp)
+        await self.bus.publish(resp.topic, resp.dict())

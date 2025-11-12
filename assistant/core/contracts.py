@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, asdict, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 import time
 import uuid
 import os
@@ -13,7 +11,7 @@ class Event:
     ts_ms: int = field(default_factory=lambda: int(time.time() * 1000))
     corr_id: str = field(default_factory=lambda: uuid.uuid4().hex)
 
-    def dict(self) -> Dict[str, Any]:
+    def dict(self) -> dict[str, Any]:
         return asdict(self)
 
 # Core Events
@@ -40,13 +38,13 @@ class STTTranscript(Event):
     text: str = ""
     confidence: Optional[float] = None  # 0..1 optional
     # Optional per-word timing: [{"word":"hi","start":0.12,"end":0.28}]
-    words: Optional[List[Dict[str, Any]]] = None
+    words: Optional[list[dict[str, Any]]] = None
 
 @dataclass(slots=True)
 class NLUIntent(Event):
     topic: str = "nlu.intent"
     intent: str = "unknown"   # e.g., "time", "timer", "weather"
-    entities: Dict[str, Any] = field(default_factory=dict)
+    entities: dict[str, Any] = field(default_factory=dict)
     confidence: float = 0.0
     original_text: str = ""
 
@@ -54,14 +52,14 @@ class NLUIntent(Event):
 class SkillRequest(Event):
     topic: str = "skill.request"
     skill: str = ""           # target skill name (identity mapping by default)
-    payload: Dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict)
 
 @dataclass(slots=True)
 class SkillResponse(Event):
     topic: str = "skill.response"
     skill: str = ""
     say: Optional[str] = None     # simple text to speak (optional)
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
 
 @dataclass(slots=True)
 class TTSRequest(Event):
@@ -94,7 +92,7 @@ class PlaybackEnd(Event):
 @dataclass(slots=True)
 class MouthEnvelope(Event):
     topic: str = "anim.mouth.envelope"
-    env: List[float] = field(default_factory=list)  # normalized [0..1]
+    env: list[float] = field(default_factory=list)  # normalized [0..1]
     hop_ms: int = 20
 
 # Fish state for debugging
@@ -110,6 +108,6 @@ def same_trace(parent: Event, child: Event) -> Event:
     child.corr_id = parent.corr_id
     return child
 
-def to_dict(e: Event) -> Dict[str, Any]:
+def to_dict(e: Event) -> dict[str, Any]:
     """Serialize any Event to a dict for the Bus or logging."""
     return e.dict()

@@ -1,25 +1,34 @@
 import asyncio
 import logging
 from assistant.core.bus import Bus
+from assistant.core.router import Router
+from assistant.core.nlu.nlu import NLU
 from assistant.core.audio.playback import Playback
 from assistant.core.tts.tts import TTS
+from assistant.skills.echo import EchoSkill
 
 
 async def start_components(bus: Bus) -> None:
     """Subscribe components to the bus."""
     # Instantiate components with shared bus
+    router = Router(bus)  # routes nlu.intent → skill.request, skill.response → tts.request
+    router.register_intent("unknown", "echo")  # route unknown intents to echo skill for testing
+    nlu = NLU(bus)
     playback = Playback(bus)
     tts = TTS(bus)
+    echo_skill = EchoSkill(bus)
 
-    # Subscribe handlers
+    # Subscribe handlers (order doesn't matter for pub/sub)
+    await nlu.start()
     await playback.start()
     await tts.start()
+    await echo_skill.start()
 
 
 async def repl(bus: Bus) -> None:
-    """Tiny REPL that publishes directly to assistant.reply to trigger TTS."""
+    """Tiny REPL that publishes stt.transcript to test full pipeline."""
     print("\n🐟 Fish Assistant Interactive Mode")
-    print("Type a message to hear TTS. Type 'quit' to exit.")
+    print("Type a message to test NLU → Skills → TTS. Type 'quit' to exit.")
 
     loop = asyncio.get_running_loop() # get the current loop for running sync code
 
@@ -35,8 +44,10 @@ async def repl(bus: Bus) -> None:
                 break
 
             if user_input:
-                # publish event
-                await bus.publish("assistant.reply", {"text": user_input})
+                # publish as stt.transcript to test full pipeline
+                from assistant.core.contracts import STTTranscript
+                stt_event = STTTranscript(text=user_input)
+                await bus.publish(stt_event.topic, stt_event.dict())
 
         except KeyboardInterrupt:
             break
