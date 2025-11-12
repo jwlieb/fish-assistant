@@ -2,7 +2,7 @@ import re
 from .types import NLUResult
 
 _TIME = re.compile(r"\b(time|what(?:'s| is) the time|time in)\b", re.I)
-_TIMER = re.compile(r"\b(set|start).*\b(timer|alarm)\b|\bin\s+\d+\s*(s|sec|second|min|m|h)\b", re.I)
+_TIMER = re.compile(r"\b(set|start).*\b(timer|alarm)\b|\b(timer|alarm).*\bfor\b|\bin\s+\d+\s*(s|sec|second|min|m|h)\b", re.I)
 _WEATHER = re.compile(r"\b(weather|temperature|forecast)\b", re.I)
 _JOKE = re.compile(r"\b(joke|funny|make me laugh)\b", re.I)
 _MUSIC = re.compile(r"\b(play|music|song|songs|playlist)\b", re.I)

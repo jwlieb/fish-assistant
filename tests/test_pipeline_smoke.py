@@ -3,7 +3,9 @@ import pytest
 
 from assistant.core.bus import Bus
 from assistant.core.router import Router
+from assistant.core.nlu.nlu import NLU
 from assistant.core.contracts import (
+    STTTranscript,
     NLUIntent,
     SkillRequest,
     SkillResponse,
@@ -17,6 +19,9 @@ pytestmark = pytest.mark.asyncio
 async def test_pipeline_smoke():
     bus = Bus()
     router = Router(bus)  # subscribes to nlu.intent and skill.response
+    router.register_intent("unknown", "echo")  # route unknown intents to echo skill
+    nlu = NLU(bus)
+    await nlu.start()  # subscribe to stt.transcript
 
     # capture published events
     captures = []  # list[tuple[str, dict]]
@@ -27,6 +32,7 @@ async def test_pipeline_smoke():
         return _fn
 
     # Subscribe to topics we want to observe
+    bus.subscribe("nlu.intent", await capture("nlu.intent"))
     bus.subscribe("skill.request", await capture("skill.request"))
     bus.subscribe("tts.request", await capture("tts.request"))
     bus.subscribe("audio.playback.start", await capture("audio.playback.start"))
@@ -58,12 +64,13 @@ async def test_pipeline_smoke():
 
     bus.subscribe("tts.request", fake_tts_and_playback)
 
-    # kick off the pipeline with an NLU intent (identity -> skill "echo") 
-    nlu = NLUIntent(intent="echo", original_text="hello fish", confidence=0.9)
-    await bus.publish(nlu.topic, nlu.dict())
+    # kick off the pipeline with stt.transcript (full pipeline test)
+    stt_event = STTTranscript(text="hello fish")
+    await bus.publish(stt_event.topic, stt_event.dict())
 
     # wait for the expected sequence 
     expected_topics = [
+        "nlu.intent",
         "skill.request",
         "tts.request",
         "audio.playback.start",
@@ -79,6 +86,11 @@ async def test_pipeline_smoke():
     # Assert corr_id consistency end-to-end
     corr_ids = [payload["corr_id"] for (_, payload) in captures[: len(expected_topics)]]
     assert all(c == corr_ids[0] for c in corr_ids), "corr_id should propagate across the chain"
+
+    # Assert NLU classified correctly
+    nlu_payload = captures[0][1]
+    assert nlu_payload["intent"] == "smalltalk" or nlu_payload["intent"] == "unknown"
+    assert nlu_payload["original_text"] == "hello fish"
 
     # (Optional) print a human-friendly path for the test log
     path_str = " → ".join(got_topics)
