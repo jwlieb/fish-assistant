@@ -5,6 +5,7 @@ from assistant.core.router import Router
 from assistant.core.nlu.nlu import NLU
 from assistant.core.audio.playback import Playback
 from assistant.core.tts.tts import TTS
+from assistant.core.stt.stt import STT
 from assistant.skills.echo import EchoSkill
 
 
@@ -13,12 +14,14 @@ async def start_components(bus: Bus) -> None:
     # Instantiate components with shared bus
     router = Router(bus)  # routes nlu.intent → skill.request, skill.response → tts.request
     router.register_intent("unknown", "echo")  # route unknown intents to echo skill for testing
-    nlu = NLU(bus)
-    playback = Playback(bus)
-    tts = TTS(bus)
-    echo_skill = EchoSkill(bus)
+    stt = STT(bus)  # listens on audio.recorded → emits stt.transcript
+    nlu = NLU(bus)  # listens on stt.transcript → emits nlu.intent
+    playback = Playback(bus)  # listens on tts.audio → plays audio
+    tts = TTS(bus)  # listens on tts.request → emits tts.audio
+    echo_skill = EchoSkill(bus)  # listens on skill.request → emits skill.response
 
     # Subscribe handlers (order doesn't matter for pub/sub)
+    await stt.start()
     await nlu.start()
     await playback.start()
     await tts.start()

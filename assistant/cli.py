@@ -47,6 +47,37 @@ def demo_record_and_transcribe(
     text = transcribe_file(res.path, model_size=model_size)
     typer.echo(f"[transcript] {text}")
 
+@app.command("test:pipeline")
+def test_pipeline(
+    duration: float = typer.Option(5.0, "--duration", "-d"),
+    device: int | None = None,
+    model_size: str = "tiny",
+):
+    """Test full pipeline: record audio → STT → NLU → Skills → TTS → Playback."""
+    async def _test():
+        from assistant.core.bus import Bus
+        from assistant.core.contracts import AudioRecorded
+        from assistant.app import start_components
+        
+        bus = Bus()
+        await start_components(bus)
+        
+        typer.echo("🎤 Recording audio... (speak now)")
+        if device is None:
+            device = get_default_input_index()
+        res = record_wav(duration_s=duration, device_index=device)
+        typer.echo(f"✅ Recorded: {res.path} ({res.duration_s:.2f}s)")
+        
+        typer.echo("🔄 Processing through pipeline...")
+        audio_event = AudioRecorded(wav_path=str(res.path), duration_s=res.duration_s)
+        await bus.publish(audio_event.topic, audio_event.dict())
+        
+        # Wait a bit for processing (transcription can take time)
+        await asyncio.sleep(10)
+        typer.echo("✅ Pipeline test complete!")
+    
+    asyncio.run(_test())
+
 @app.command("run")
 def run_assistant():
     """Run the Fish Assistant in interactive mode."""

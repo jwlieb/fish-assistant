@@ -12,7 +12,6 @@ dependencies = [
     "python-dotenv",
     "sounddevice>=0.5.2",
     "soundfile>=0.13.1",
-    "playsound>=1.2.2",
     "pyttsx3>=2.99",
 ]
 
