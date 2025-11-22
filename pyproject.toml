@@ -13,6 +13,7 @@ dependencies = [
     "sounddevice>=0.5.2",
     "soundfile>=0.13.1",
     "pyttsx3>=2.99",
+    "webrtcvad>=2.0.10",
 ]
 
 [project.optional-dependencies]
