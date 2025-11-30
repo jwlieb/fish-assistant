@@ -83,5 +83,39 @@ def run_assistant():
     """Run the Fish Assistant in interactive mode."""
     asyncio.run(app_main())
 
+@app.command("converse")
+def converse(
+    device: int | None = None,
+):
+    """Start continuous conversation loop with VAD (hands-free mode)."""
+    async def _converse():
+        from assistant.core.bus import Bus
+        from assistant.core.ux.conversation_loop import ConversationLoop
+        from assistant.app import start_components
+        
+        bus = Bus()
+        
+        # Start all components (STT, NLU, TTS, Playback, Skills)
+        await start_components(bus)
+        
+        # Start conversation loop
+        if device is None:
+            device = get_default_input_index()
+        
+        typer.echo("🐟 Starting conversation loop...")
+        typer.echo("📢 Speak naturally - the fish will listen and respond!")
+        typer.echo("Press Ctrl+C to stop\n")
+        
+        loop = ConversationLoop(bus, device_index=device)
+        
+        try:
+            await loop.start()
+        except KeyboardInterrupt:
+            typer.echo("\n🛑 Stopping conversation loop...")
+            await loop.stop()
+            typer.echo("✅ Stopped.")
+    
+    asyncio.run(_converse())
+
 if __name__ == "__main__":
     app()
