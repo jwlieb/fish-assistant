@@ -1,15 +1,34 @@
 import asyncio
 import logging
 import soundfile as sf
+from typing import Protocol
 from assistant.core.tts.pyttsx3_adapter import Pyttsx3Adapter
 from assistant.core.contracts import TTSRequest, TTSAudio, same_trace
+
+
+class TTSAdapter(Protocol):
+    """Protocol for TTS adapters - must implement synth method."""
+    def synth(self, text: str) -> str:
+        """Synthesize text to speech and return path to WAV file."""
+        ...
+
 
 class TTS:
     """
     Listens on 'tts.request' and emits 'tts.audio'.
+    
+    Can use either local (Pyttsx3Adapter) or remote (RemoteTTSAdapter) adapters.
     """
 
-    def __init__(self, bus, adapter: Pyttsx3Adapter | None = None):
+    def __init__(self, bus, adapter: TTSAdapter | None = None):
+        """
+        Initialize TTS component.
+        
+        Args:
+            bus: Event bus instance
+            adapter: TTS adapter (Pyttsx3Adapter or RemoteTTSAdapter).
+                    If None, creates a local Pyttsx3Adapter.
+        """
         self.bus = bus
         self.adapter = adapter or Pyttsx3Adapter()
         self.log = logging.getLogger("tts")
