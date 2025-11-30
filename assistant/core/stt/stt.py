@@ -1,18 +1,42 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import Literal
-from assistant.core.stt.whisper_adapter import transcribe_file
+from typing import Literal, Protocol
+from assistant.core.stt.whisper_adapter import WhisperAdapter
 from assistant.core.contracts import AudioRecorded, STTTranscript, same_trace
+
+
+class STTAdapter(Protocol):
+    """Protocol for STT adapters - must implement transcribe method."""
+    def transcribe(self, path: str | Path) -> str:
+        """Transcribe audio file and return text."""
+        ...
+
 
 class STT:
     """
     Listens on 'audio.recorded' and emits 'stt.transcript'.
+    
+    Can use either local (WhisperAdapter) or remote (RemoteSTTAdapter) adapters.
     """
 
-    def __init__(self, bus, model_size: Literal["tiny", "base", "small", "medium"] = "tiny"):
+    def __init__(
+        self,
+        bus,
+        adapter: STTAdapter | None = None,
+        model_size: Literal["tiny", "base", "small", "medium"] = "tiny",
+    ):
+        """
+        Initialize STT component.
+        
+        Args:
+            bus: Event bus instance
+            adapter: STT adapter (WhisperAdapter or RemoteSTTAdapter).
+                    If None, creates a local WhisperAdapter.
+            model_size: Model size for local adapter (ignored if adapter provided)
+        """
         self.bus = bus
-        self.model_size = model_size
+        self.adapter = adapter or WhisperAdapter(model_size=model_size)
         self.log = logging.getLogger("stt")
 
     async def start(self):
@@ -38,7 +62,8 @@ class STT:
         # run blocking transcription in thread
         self.log.info("transcribing audio file: %s", wav_path)
         try:
-            text = await asyncio.to_thread(transcribe_file, wav_path, self.model_size)
+            # Use adapter's transcribe method
+            text = await asyncio.to_thread(self.adapter.transcribe, wav_path)
             self.log.debug("transcription complete: %s", text[:50] if text else "(empty)")
         except Exception as e:
             self.log.exception("transcription failed: %s", e)

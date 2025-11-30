@@ -4,6 +4,7 @@ from assistant.core.bus import Bus
 from assistant.core.router import Router
 from assistant.core.nlu.nlu import NLU
 from assistant.core.audio.playback import Playback
+from assistant.core.audio.billy_bass import BillyBass
 from assistant.core.tts.tts import TTS
 from assistant.core.stt.stt import STT
 from assistant.skills.echo import EchoSkill
@@ -17,6 +18,7 @@ async def start_components(bus: Bus) -> None:
     stt = STT(bus)  # listens on audio.recorded → emits stt.transcript
     nlu = NLU(bus)  # listens on stt.transcript → emits nlu.intent
     playback = Playback(bus)  # listens on tts.audio → plays audio
+    billy_bass = BillyBass(bus)  # listens on audio.playback.start/end → controls mouth motor
     tts = TTS(bus)  # listens on tts.request → emits tts.audio
     echo_skill = EchoSkill(bus)  # listens on skill.request → emits skill.response
 
@@ -24,6 +26,7 @@ async def start_components(bus: Bus) -> None:
     await stt.start()
     await nlu.start()
     await playback.start()
+    await billy_bass.start()
     await tts.start()
     await echo_skill.start()
 
