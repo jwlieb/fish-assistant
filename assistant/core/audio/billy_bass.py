@@ -1,8 +1,10 @@
 """
-Billy Bass mouth motor controller.
+Billy Bass motor controller for mouth, tail, and head animations.
 
-Controls a motor driver (via PWM and GPIO) to animate the fish mouth
-based on audio amplitude during playback.
+Controls motor drivers (via PWM and GPIO) to animate:
+- Mouth: Synchronized with audio playback amplitude
+- Tail: Flaps during thinking state
+- Head: Turns during listening and speaking states
 
 Requires Adafruit_BBIO library (BeagleBone Black specific).
 """
@@ -13,7 +15,7 @@ import os
 import numpy as np
 import soundfile as sf
 from typing import Optional
-from ..contracts import PlaybackStart, PlaybackEnd
+from ..contracts import PlaybackStart, PlaybackEnd, UXState
 
 # Try to import BeagleBone GPIO/PWM libraries
 try:
@@ -28,14 +30,28 @@ except ImportError:
 
 class BillyBass:
     """
-    Listens on 'audio.playback.start' and 'audio.playback.end'.
-    Controls mouth motor based on audio amplitude during playback.
+    Controls Billy Bass motors for mouth, tail, and head animations.
+    
+    Listens on:
+    - 'audio.playback.start' and 'audio.playback.end' - Controls mouth motor based on audio amplitude
+    - 'ux.state' - Triggers body animations based on conversation state
+    
+    Provides direct methods for manual control:
+    - tail_flap() - Animate tail flapping
+    - head_turn() - Turn head left/right
+    - stop_body_motor() - Stop body motor
     """
 
     # Hardware pin configuration (BeagleBone Black)
+    # Mouth motor pins
     MOUTH_PWM_PIN = "P1_36"
-    MOUTH_IN1 = "P1_32"
-    MOUTH_IN2 = "P1_30"
+    MOUTH_IN1 = "P1_30"
+    MOUTH_IN2 = "P1_32"
+    # Body motor pins (for tail flap and head turn)
+    BODY_PWM_PIN = "P1_33"
+    BODY_IN1 = "P1_26"
+    BODY_IN2 = "P1_28"
+    # STBY pin is wired to positive rail, no GPIO control needed
     STBY_PIN = "P1_06"
 
     # Audio processing parameters
@@ -57,6 +73,7 @@ class BillyBass:
         self.log = logging.getLogger("billy_bass")
         self._initialized = False
         self._current_task: Optional[asyncio.Task] = None
+        self._body_task: Optional[asyncio.Task] = None
 
         if not BBIO_AVAILABLE:
             self.log.warning(
@@ -67,13 +84,14 @@ class BillyBass:
             self.log.info("Billy Bass motor control disabled by configuration")
 
     async def start(self):
-        """Subscribe to playback events."""
+        """Subscribe to playback and UX state events."""
         if not self.enabled:
             return
         
         self._initialize_hardware()
         self.bus.subscribe("audio.playback.start", self._on_playback_start)
         self.bus.subscribe("audio.playback.end", self._on_playback_end)
+        self.bus.subscribe("ux.state", self._on_ux_state)
 
     def _initialize_hardware(self):
         """Initialize GPIO and PWM pins."""
@@ -81,16 +99,19 @@ class BillyBass:
             return
         
         try:
-            # Setup standby pin (enable motor driver)
-            GPIO.setup(self.STBY_PIN, GPIO.OUT)
-            GPIO.output(self.STBY_PIN, GPIO.HIGH)
+            # STBY pin is wired to positive rail, no GPIO setup needed
             
-            # Setup motor direction pins
+            # Setup mouth motor direction pins
             GPIO.setup(self.MOUTH_IN1, GPIO.OUT)
             GPIO.setup(self.MOUTH_IN2, GPIO.OUT)
             
+            # Setup body motor direction pins
+            GPIO.setup(self.BODY_IN1, GPIO.OUT)
+            GPIO.setup(self.BODY_IN2, GPIO.OUT)
+            
             # Initialize PWM (start at 0% duty cycle)
             PWM.start(self.MOUTH_PWM_PIN, 0)
+            PWM.start(self.BODY_PWM_PIN, 0)
             
             self._initialized = True
             self.log.info("Billy Bass hardware initialized")
@@ -229,14 +250,113 @@ class BillyBass:
             self.log.exception("Error controlling motor: %s", e)
 
     def _stop_motor(self):
-        """Stop the motor by setting PWM to 0."""
+        """Stop the mouth motor by setting PWM to 0."""
         if not self._initialized:
             return
         
         try:
             PWM.set_duty_cycle(self.MOUTH_PWM_PIN, 0)
         except Exception as e:
-            self.log.exception("Error stopping motor: %s", e)
+            self.log.exception("Error stopping mouth motor: %s", e)
+
+    async def tail_flap(self, duration_s: float = 0.5, speed: int = 100) -> None:
+        """
+        Animate tail flapping by rotating body motor in one direction.
+        
+        Args:
+            duration_s: Duration of the flap animation in seconds
+            speed: PWM duty cycle (0-100) for motor speed
+        """
+        if not self.enabled or not self._initialized:
+            return
+        
+        try:
+            # Set direction for tail flap (BODY_IN1=HIGH, BODY_IN2=LOW)
+            GPIO.output(self.BODY_IN1, GPIO.HIGH)
+            GPIO.output(self.BODY_IN2, GPIO.LOW)
+            PWM.set_duty_cycle(self.BODY_PWM_PIN, min(100, max(0, speed)))
+            
+            await asyncio.sleep(duration_s)
+            
+            # Stop motor
+            self.stop_body_motor()
+        except Exception as e:
+            self.log.exception("Error during tail flap: %s", e)
+            self.stop_body_motor()
+
+    async def head_turn(self, duration_s: float = 1.0, speed: int = 100) -> None:
+        """
+        Turn head by rotating body motor in opposite direction.
+        
+        Args:
+            duration_s: Duration of the head turn in seconds (use float('inf') for continuous)
+            speed: PWM duty cycle (0-100) for motor speed
+        """
+        if not self.enabled or not self._initialized:
+            return
+        
+        try:
+            # Set direction for head turn (BODY_IN1=LOW, BODY_IN2=HIGH)
+            GPIO.output(self.BODY_IN1, GPIO.LOW)
+            GPIO.output(self.BODY_IN2, GPIO.HIGH)
+            PWM.set_duty_cycle(self.BODY_PWM_PIN, min(100, max(0, speed)))
+            
+            if duration_s != float('inf'):
+                await asyncio.sleep(duration_s)
+                self.stop_body_motor()
+        except Exception as e:
+            self.log.exception("Error during head turn: %s", e)
+            self.stop_body_motor()
+
+    def stop_body_motor(self) -> None:
+        """Stop the body motor by setting PWM to 0."""
+        if not self._initialized:
+            return
+        
+        try:
+            PWM.set_duty_cycle(self.BODY_PWM_PIN, 0)
+        except Exception as e:
+            self.log.exception("Error stopping body motor: %s", e)
+
+    async def _on_ux_state(self, payload: dict):
+        """Handle UX state changes to trigger body animations."""
+        if not self.enabled:
+            return
+        
+        try:
+            event = UXState(**payload)
+        except Exception:
+            self.log.warning("malformed ux.state event, skipping")
+            return
+        
+        state = event.state
+        
+        # Cancel any existing body animation task
+        if self._body_task and not self._body_task.done():
+            self._body_task.cancel()
+            try:
+                await self._body_task
+            except asyncio.CancelledError:
+                pass
+            # Ensure motor stops when cancelling continuous animations
+            self.stop_body_motor()
+        
+        if state == "thinking":
+            # Tail flap during thinking state
+            self.log.debug("Thinking state: triggering tail flap")
+            self._body_task = asyncio.create_task(self.tail_flap(duration_s=0.5, speed=100))
+        elif state == "listening":
+            # Start head turn while listening (continuous)
+            self.log.debug("Listening state: starting head turn")
+            self._body_task = asyncio.create_task(self.head_turn(duration_s=float('inf'), speed=100))
+        elif state == "speaking":
+            # Continue head turn while speaking (continuous)
+            self.log.debug("Speaking state: continuing head turn")
+            self._body_task = asyncio.create_task(self.head_turn(duration_s=float('inf'), speed=100))
+        elif state == "idle":
+            # Stop body motor when idle
+            self.log.debug("Idle state: stopping body motor")
+            self.stop_body_motor()
 
     async def stop(self):
         """Cleanup resources before shutdown."""
@@ -244,12 +364,20 @@ class BillyBass:
             return
         
         self._stop_motor()
+        self.stop_body_motor()
         
-        # Cancel any running task
+        # Cancel any running tasks
         if self._current_task and not self._current_task.done():
             self._current_task.cancel()
             try:
                 await self._current_task
+            except asyncio.CancelledError:
+                pass
+        
+        if self._body_task and not self._body_task.done():
+            self._body_task.cancel()
+            try:
+                await self._body_task
             except asyncio.CancelledError:
                 pass
 
@@ -257,6 +385,7 @@ class BillyBass:
         if self._initialized:
             try:
                 PWM.stop(self.MOUTH_PWM_PIN)
+                PWM.stop(self.BODY_PWM_PIN)
                 PWM.cleanup()
                 GPIO.cleanup()
                 self._initialized = False
