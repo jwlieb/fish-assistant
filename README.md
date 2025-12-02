@@ -108,18 +108,69 @@ audio.recorded ─► STT (whisper) ─► stt.transcript ─► NLU (rules) ─
 
 ## Configuration
 
-Currently, components use defaults but can be configured programmatically:
+Fish Assistant supports configuration via environment variables or a `.env` file.
 
-- **STT model size**: Pass `model_size` to `STT()` constructor (`"tiny"`, `"base"`, `"small"`, `"medium"`)
-- **TTS adapter**: Pass custom adapter to `TTS()` constructor
-- **NLU adapter**: Pass custom adapter to `NLU()` constructor
-- **Audio devices**: Use `fish audio:list` to see available devices, pass `device_index` to `record_wav()`
+### Environment Variables
 
-Future environment variables (TODO):
-- `FISH_MODE`: `dev` (laptop) | `device` (PocketBeagle)
-- `FISH_STT_MODEL`: Whisper model size (default: `tiny`)
-- `FISH_TTS`: `local` (pyttsx3) | `remote` (future)
-- `FISH_TMP`: base temp directory (default `/tmp/fish`)
+**STT (Speech-to-Text) Configuration:**
+- `STT_MODE`: `"local"` (use faster-whisper) or `"remote"` (use HTTP server) - default: `"local"`
+- `STT_SERVER_URL`: Remote STT server URL - default: `"http://localhost:8000"`
+- `STT_MODEL_SIZE`: Model size for local STT - `"tiny"`, `"base"`, `"small"`, `"medium"` - default: `"tiny"`
+- `STT_TIMEOUT`: Request timeout in seconds (remote only) - default: `30.0`
+
+**TTS (Text-to-Speech) Configuration:**
+- `TTS_MODE`: `"local"` (use pyttsx3) or `"remote"` (use HTTP server) - default: `"local"`
+- `TTS_SERVER_URL`: Remote TTS server URL - default: `"http://localhost:8000"`
+- `TTS_VOICE`: Voice name (optional, adapter-specific) - default: `None`
+- `TTS_TIMEOUT`: Request timeout in seconds (remote only) - default: `30.0`
+
+**Billy Bass Configuration:**
+- `BILLY_BASS_ENABLED`: Enable motor control - `"true"` or `"false"` - default: `"true"`
+
+### Example Configurations
+
+**Local Development (everything runs locally):**
+```bash
+STT_MODE=local
+STT_MODEL_SIZE=tiny
+TTS_MODE=local
+BILLY_BASS_ENABLED=false  # Disable if no hardware
+```
+
+**PocketBeagle (remote STT/TTS):**
+```bash
+STT_MODE=remote
+STT_SERVER_URL=http://192.168.1.100:8000
+TTS_MODE=remote
+TTS_SERVER_URL=http://192.168.1.100:8000
+BILLY_BASS_ENABLED=true
+```
+
+**Using .env file:**
+Create a `.env` file in the project root (see `.env.example` for template):
+```bash
+STT_MODE=remote
+STT_SERVER_URL=http://localhost:8000
+TTS_MODE=remote
+TTS_SERVER_URL=http://localhost:8000
+```
+
+### Programmatic Configuration
+
+You can also configure adapters programmatically:
+```python
+from assistant.core.stt.stt import STT
+from assistant.core.stt.remote_stt_adapter import RemoteSTTAdapter
+from assistant.core.tts.tts import TTS
+from assistant.core.tts.remote_tts_adapter import RemoteTTSAdapter
+
+# Use remote adapters
+stt_adapter = RemoteSTTAdapter(server_url="http://localhost:8000")
+stt = STT(bus, adapter=stt_adapter)
+
+tts_adapter = RemoteTTSAdapter(server_url="http://localhost:8000")
+tts = TTS(bus, adapter=tts_adapter)
+```
 
 ---
 

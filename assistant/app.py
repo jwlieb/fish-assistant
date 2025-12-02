@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from assistant.core.bus import Bus
+from assistant.core.config import Config
 from assistant.core.router import Router
 from assistant.core.nlu.nlu import NLU
 from assistant.core.audio.playback import Playback
@@ -15,11 +16,17 @@ async def start_components(bus: Bus) -> None:
     # Instantiate components with shared bus
     router = Router(bus)  # routes nlu.intent → skill.request, skill.response → tts.request
     router.register_intent("unknown", "echo")  # route unknown intents to echo skill for testing
-    stt = STT(bus)  # listens on audio.recorded → emits stt.transcript
+    
+    # Get adapters from configuration
+    stt_adapter = Config.get_stt_adapter()
+    tts_adapter = Config.get_tts_adapter()
+    
+    # Create components with configured adapters
+    stt = STT(bus, adapter=stt_adapter)  # listens on audio.recorded → emits stt.transcript
     nlu = NLU(bus)  # listens on stt.transcript → emits nlu.intent
     playback = Playback(bus)  # listens on tts.audio → plays audio
-    billy_bass = BillyBass(bus)  # listens on audio.playback.start/end → controls mouth motor
-    tts = TTS(bus)  # listens on tts.request → emits tts.audio
+    billy_bass = BillyBass(bus, enabled=Config.BILLY_BASS_ENABLED)  # listens on audio.playback.start/end → controls mouth motor
+    tts = TTS(bus, adapter=tts_adapter)  # listens on tts.request → emits tts.audio
     echo_skill = EchoSkill(bus)  # listens on skill.request → emits skill.response
 
     # Subscribe handlers (order doesn't matter for pub/sub)
@@ -65,6 +72,7 @@ async def main() -> None:
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
     bus = Bus()
     print("🐟 Starting Fish Assistant...")
+    Config.print_config()
     await start_components(bus)
     print("🐟 Components ready.")
     await repl(bus)
