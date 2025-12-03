@@ -56,6 +56,9 @@ class Config:
     SERVER_HOST: str = os.getenv("SERVER_HOST", "0.0.0.0")
     SERVER_PORT: int = int(os.getenv("SERVER_PORT", "8000"))
     
+    # Client Configuration (for server mode to push audio to client)
+    CLIENT_SERVER_URL: Optional[str] = os.getenv("CLIENT_SERVER_URL", None)
+    
     @classmethod
     def get_stt_adapter(cls):
         """
@@ -128,5 +131,7 @@ class Config:
         print(f"  Deployment Mode: {cls.DEPLOYMENT_MODE}")
         if cls.DEPLOYMENT_MODE == "server":
             print(f"    Server: {cls.SERVER_HOST}:{cls.SERVER_PORT}")
+            if cls.CLIENT_SERVER_URL:
+                print(f"    Client: {cls.CLIENT_SERVER_URL}")
         print()
 

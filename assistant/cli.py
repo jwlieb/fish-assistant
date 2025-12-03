@@ -123,6 +123,7 @@ def server(
     host: str = typer.Option(None, "--host", "-H", help="Host to bind to"),
     port: int = typer.Option(None, "--port", "-p", help="Port to bind to"),
     device: int | None = typer.Option(None, "--device", "-d", help="Audio input device index"),
+    client_url: str = typer.Option(None, "--client-url", "-c", help="Client server URL to push audio to"),
 ):
     """Start Fish Assistant in server mode (microphone + HTTP API)."""
     import uvicorn
@@ -142,6 +143,10 @@ def server(
     if port:
         Config.SERVER_PORT = port
     
+    # Override client URL if provided
+    if client_url:
+        Config.CLIENT_SERVER_URL = client_url
+    
     # Global bus and loop task for lifespan management
     bus = Bus()
     loop_task = None
@@ -157,6 +162,8 @@ def server(
         typer.echo(f"   - POST /api/stt/transcribe")
         typer.echo(f"   - POST /api/tts/synthesize")
         typer.echo(f"   - GET  /health")
+        if Config.CLIENT_SERVER_URL:
+            typer.echo(f"📤 Client audio push enabled: {Config.CLIENT_SERVER_URL}")
         
         # Start server components
         await start_server_components(bus)

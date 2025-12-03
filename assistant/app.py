@@ -11,21 +11,22 @@ from assistant.core.stt.stt import STT
 from assistant.skills.echo import EchoSkill
 
 
-async def _start_core_components(bus: Bus, stt_adapter, tts_adapter) -> None:
+async def _start_core_components(bus: Bus, stt_adapter, tts_adapter, skip_playback: bool = False) -> None:
     """Internal helper to start core components with given adapters."""
     router = Router(bus)
     router.register_intent("unknown", "echo")
     
     stt = STT(bus, adapter=stt_adapter)
     nlu = NLU(bus)
-    playback = Playback(bus)
+    playback = Playback(bus) if not skip_playback else None
     billy_bass = BillyBass(bus, enabled=Config.BILLY_BASS_ENABLED)
     tts = TTS(bus, adapter=tts_adapter)
     echo_skill = EchoSkill(bus)
 
     await stt.start()
     await nlu.start()
-    await playback.start()
+    if playback:
+        await playback.start()
     await billy_bass.start()
     await tts.start()
     await echo_skill.start()
@@ -46,7 +47,17 @@ async def start_server_components(bus: Bus) -> None:
     
     stt_adapter = WhisperAdapter(model_size=Config.STT_MODEL_SIZE)
     tts_adapter = Pyttsx3Adapter(voice=Config.TTS_VOICE)
-    await _start_core_components(bus, stt_adapter, tts_adapter)
+    
+    # If CLIENT_SERVER_URL is configured, skip local playback (audio goes to client)
+    skip_playback = bool(Config.CLIENT_SERVER_URL)
+    await _start_core_components(bus, stt_adapter, tts_adapter, skip_playback=skip_playback)
+    
+    # If CLIENT_SERVER_URL is configured, push audio to client instead of playing locally
+    if Config.CLIENT_SERVER_URL:
+        from assistant.core.audio.client_push import ClientAudioPush
+        client_push = ClientAudioPush(bus)
+        await client_push.start()
+        logging.info("Client audio push enabled, audio will be sent to: %s", Config.CLIENT_SERVER_URL)
 
 
 async def start_client_components(bus: Bus) -> None:
