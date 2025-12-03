@@ -117,5 +117,138 @@ def converse(
     
     asyncio.run(_converse())
 
+
+@app.command("server")
+def server(
+    host: str = typer.Option(None, "--host", "-H", help="Host to bind to"),
+    port: int = typer.Option(None, "--port", "-p", help="Port to bind to"),
+    device: int | None = typer.Option(None, "--device", "-d", help="Audio input device index"),
+):
+    """Start Fish Assistant in server mode (microphone + HTTP API)."""
+    import uvicorn
+    from contextlib import asynccontextmanager
+    from assistant.core.config import Config
+    from assistant.core.bus import Bus
+    from assistant.core.ux.conversation_loop import ConversationLoop
+    from assistant.app import start_server_components
+    from assistant.server import create_app
+    
+    # Set deployment mode
+    Config.DEPLOYMENT_MODE = "server"
+    
+    # Override host/port if provided
+    if host:
+        Config.SERVER_HOST = host
+    if port:
+        Config.SERVER_PORT = port
+    
+    # Global bus and loop task for lifespan management
+    bus = Bus()
+    loop_task = None
+    conversation_loop = None
+    
+    @asynccontextmanager
+    async def lifespan(app_instance):
+        nonlocal loop_task, conversation_loop
+        
+        # Startup
+        typer.echo(f"🌐 Starting HTTP server on {Config.SERVER_HOST}:{Config.SERVER_PORT}")
+        typer.echo("📡 API endpoints available at:")
+        typer.echo(f"   - POST /api/stt/transcribe")
+        typer.echo(f"   - POST /api/tts/synthesize")
+        typer.echo(f"   - GET  /health")
+        
+        # Start server components
+        await start_server_components(bus)
+        
+        # Start conversation loop if device is available
+        if device is not None or get_default_input_index() is not None:
+            typer.echo("🐟 Starting conversation loop...")
+            conversation_loop = ConversationLoop(bus, device_index=device)
+            loop_task = asyncio.create_task(conversation_loop.start())
+        else:
+            typer.echo("⚠️  No audio input device found. Server will run without microphone.")
+        
+        typer.echo("Press Ctrl+C to stop\n")
+        
+        yield
+        
+        # Shutdown
+        typer.echo("\n🛑 Stopping server...")
+        if loop_task:
+            loop_task.cancel()
+            try:
+                await loop_task
+            except asyncio.CancelledError:
+                pass
+        if conversation_loop:
+            await conversation_loop.stop()
+        bus.clear()
+        typer.echo("✅ Stopped.")
+    
+    # Create app with lifespan
+    app = create_app(lifespan=lifespan)
+    
+    # Start uvicorn server (blocking)
+    uvicorn.run(
+        app,
+        host=Config.SERVER_HOST,
+        port=Config.SERVER_PORT,
+        log_level="info"
+    )
+
+
+@app.command("client")
+def client(
+    host: str = typer.Option("0.0.0.0", "--host", "-H", help="Host to bind client server to"),
+    port: int = typer.Option(8001, "--port", "-p", help="Port to bind client server to"),
+):
+    """Start Fish Assistant in client mode (playback + motors, remote STT/TTS)."""
+    import uvicorn
+    from assistant.core.config import Config
+    from assistant.core.bus import Bus
+    from assistant.app import start_client_components
+    from assistant.client_server import create_client_app
+    
+    # Set deployment mode
+    Config.DEPLOYMENT_MODE = "client"
+    
+    # Validate configuration
+    if Config.STT_MODE != "remote" or Config.TTS_MODE != "remote":
+        typer.echo("⚠️  Warning: Client mode requires STT_MODE=remote and TTS_MODE=remote")
+        typer.echo(f"   Current: STT_MODE={Config.STT_MODE}, TTS_MODE={Config.TTS_MODE}")
+        typer.echo(f"   Using server URLs: STT={Config.STT_SERVER_URL}, TTS={Config.TTS_SERVER_URL}")
+    
+    async def _start_client():
+        bus = Bus()
+        
+        typer.echo("🐟 Starting Fish Assistant in client mode...")
+        typer.echo(f"📡 Connecting to server:")
+        typer.echo(f"   STT: {Config.STT_SERVER_URL}")
+        typer.echo(f"   TTS: {Config.TTS_SERVER_URL}")
+        
+        # Start client components
+        await start_client_components(bus)
+        
+        typer.echo(f"🌐 Starting client HTTP server on {host}:{port}")
+        typer.echo("📡 Client endpoints:")
+        typer.echo(f"   - POST /api/audio/play (receive audio files)")
+        typer.echo(f"   - GET  /health")
+        typer.echo("✅ Client ready. Waiting for audio playback events...")
+        typer.echo("Press Ctrl+C to stop\n")
+        
+        # Create client HTTP app
+        client_app = create_client_app(bus)
+        
+        # Start uvicorn server (blocking)
+        uvicorn.run(
+            client_app,
+            host=host,
+            port=port,
+            log_level="info"
+        )
+    
+    asyncio.run(_start_client())
+
 if __name__ == "__main__":
     app()

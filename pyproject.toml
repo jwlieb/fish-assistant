@@ -5,22 +5,44 @@ description = "Personal assistant that may or may not be housed in a talking fis
 readme = "README.md"
 requires-python = ">=3.10"
 
+# Core dependencies (always needed)
 dependencies = [
-    "faster-whisper>=1.0.3",
     "typer>=0.12.3",
-    "numpy>=2.1.1",
     "python-dotenv",
-    "sounddevice>=0.5.2",
-    "soundfile>=0.13.1",
-    "pyttsx3>=2.99",
-    "webrtcvad>=2.0.10",
     "httpx>=0.27.0",
 ]
 
 [project.optional-dependencies]
+# Client mode dependencies (PocketBeagle - minimal footprint)
+client = [
+    "numpy>=2.1.1",           # billy_bass audio processing
+    "sounddevice>=0.5.2",     # audio playback
+    "soundfile>=0.13.1",      # audio file handling (playback, billy_bass, client_server)
+    "fastapi>=0.104.0",       # client HTTP server
+    "uvicorn[standard]>=0.24.0",  # client HTTP server
+    "python-multipart>=0.0.6",  # Required for FastAPI form data (file uploads)
+]
+
+# Server mode dependencies (laptop - adds STT/TTS processing)
+# Note: Server mode includes client dependencies (HTTP server needs fastapi/uvicorn)
+server = [
+    "numpy>=2.1.1",            # billy_bass (if server also controls motors)
+    "sounddevice>=0.5.2",      # audio I/O (conversation loop)
+    "soundfile>=0.13.1",       # audio file handling
+    "fastapi>=0.104.0",        # HTTP server
+    "uvicorn[standard]>=0.24.0",  # HTTP server
+    "python-multipart>=0.0.6",  # Required for FastAPI form data (file uploads)
+    "faster-whisper>=1.0.3",   # local STT
+    "pyttsx3>=2.99",           # local TTS
+    "webrtcvad>=2.0.10",       # voice activity detection (conversation loop)
+]
+
+# Development dependencies
 dev = [
     "pytest>=8",
     "pytest-asyncio",
+    "httpx>=0.27.0",  # For testing HTTP clients
+    "python-multipart>=0.0.6",  # Required for FastAPI form data testing
 ]
 
 [project.scripts]

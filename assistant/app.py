@@ -11,31 +11,100 @@ from assistant.core.stt.stt import STT
 from assistant.skills.echo import EchoSkill
 
 
-async def start_components(bus: Bus) -> None:
-    """Subscribe components to the bus."""
-    # Instantiate components with shared bus
-    router = Router(bus)  # routes nlu.intent → skill.request, skill.response → tts.request
-    router.register_intent("unknown", "echo")  # route unknown intents to echo skill for testing
+async def _start_core_components(bus: Bus, stt_adapter, tts_adapter) -> None:
+    """Internal helper to start core components with given adapters."""
+    router = Router(bus)
+    router.register_intent("unknown", "echo")
     
-    # Get adapters from configuration
-    stt_adapter = Config.get_stt_adapter()
-    tts_adapter = Config.get_tts_adapter()
-    
-    # Create components with configured adapters
-    stt = STT(bus, adapter=stt_adapter)  # listens on audio.recorded → emits stt.transcript
-    nlu = NLU(bus)  # listens on stt.transcript → emits nlu.intent
-    playback = Playback(bus)  # listens on tts.audio → plays audio
-    billy_bass = BillyBass(bus, enabled=Config.BILLY_BASS_ENABLED)  # listens on audio.playback.start/end → controls mouth motor
-    tts = TTS(bus, adapter=tts_adapter)  # listens on tts.request → emits tts.audio
-    echo_skill = EchoSkill(bus)  # listens on skill.request → emits skill.response
+    stt = STT(bus, adapter=stt_adapter)
+    nlu = NLU(bus)
+    playback = Playback(bus)
+    billy_bass = BillyBass(bus, enabled=Config.BILLY_BASS_ENABLED)
+    tts = TTS(bus, adapter=tts_adapter)
+    echo_skill = EchoSkill(bus)
 
-    # Subscribe handlers (order doesn't matter for pub/sub)
     await stt.start()
     await nlu.start()
     await playback.start()
     await billy_bass.start()
     await tts.start()
     await echo_skill.start()
+
+
+async def start_full_components(bus: Bus) -> None:
+    """Start all components for full mode (everything local)."""
+    stt_adapter = Config.get_stt_adapter()
+    tts_adapter = Config.get_tts_adapter()
+    await _start_core_components(bus, stt_adapter, tts_adapter)
+
+
+async def start_server_components(bus: Bus) -> None:
+    """Start components for server mode (microphone + full pipeline + HTTP server)."""
+    # Use local adapters (server processes everything locally)
+    from assistant.core.stt.whisper_adapter import WhisperAdapter
+    from assistant.core.tts.pyttsx3_adapter import Pyttsx3Adapter
+    
+    stt_adapter = WhisperAdapter(model_size=Config.STT_MODEL_SIZE)
+    tts_adapter = Pyttsx3Adapter(voice=Config.TTS_VOICE)
+    await _start_core_components(bus, stt_adapter, tts_adapter)
+
+
+async def start_client_components(bus: Bus) -> None:
+    """Start components for client mode (playback + motors + remote adapters)."""
+    # Client uses remote adapters to call server
+    stt_adapter = Config.get_stt_adapter()  # Will return RemoteSTTAdapter if STT_MODE=remote
+    tts_adapter = Config.get_tts_adapter()  # Will return RemoteTTSAdapter if TTS_MODE=remote
+    
+    # Ensure we're using remote adapters in client mode
+    if Config.STT_MODE != "remote":
+        logging.warning("Client mode should use remote STT. Setting STT_MODE=remote")
+        from assistant.core.stt.remote_stt_adapter import RemoteSTTAdapter
+        stt_adapter = RemoteSTTAdapter(
+            server_url=Config.STT_SERVER_URL,
+            model_size=Config.STT_MODEL_SIZE,
+            timeout=Config.STT_TIMEOUT,
+        )
+    
+    if Config.TTS_MODE != "remote":
+        logging.warning("Client mode should use remote TTS. Setting TTS_MODE=remote")
+        from assistant.core.tts.remote_tts_adapter import RemoteTTSAdapter
+        tts_adapter = RemoteTTSAdapter(
+            server_url=Config.TTS_SERVER_URL,
+            voice=Config.TTS_VOICE,
+            timeout=Config.TTS_TIMEOUT,
+        )
+    
+    # Create components - client only needs playback and motors
+    # STT/TTS are still needed for the pipeline, but they use remote adapters
+    router = Router(bus)
+    router.register_intent("unknown", "echo")
+    
+    stt = STT(bus, adapter=stt_adapter)
+    nlu = NLU(bus)
+    playback = Playback(bus)  # listens on tts.audio → plays audio
+    billy_bass = BillyBass(bus, enabled=Config.BILLY_BASS_ENABLED)  # listens on audio.playback.start/end → controls mouth motor
+    tts = TTS(bus, adapter=tts_adapter)
+    echo_skill = EchoSkill(bus)
+
+    # Subscribe handlers
+    await stt.start()
+    await nlu.start()
+    await playback.start()
+    await billy_bass.start()
+    await tts.start()
+    await echo_skill.start()
+
+
+async def start_components(bus: Bus) -> None:
+    """Subscribe components to the bus based on deployment mode."""
+    mode = Config.DEPLOYMENT_MODE
+    
+    if mode == "server":
+        await start_server_components(bus)
+    elif mode == "client":
+        await start_client_components(bus)
+    else:  # mode == "full"
+        await start_full_components(bus)
 
 
 async def repl(bus: Bus) -> None:

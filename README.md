@@ -24,10 +24,22 @@ Next: **Conversation loop** with VAD for continuous listening.
 
 ## Quick start
 
+### Full installation (development/testing)
 ```bash
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
+pip install -e ".[dev,client,server]"    # Installs all dependencies
+```
+
+### Client mode (PocketBeagle - minimal footprint)
+```bash
+pip install -e ".[client]"      # Only client dependencies
+```
+
+### Server mode (laptop - with STT/TTS)
+```bash
+pip install -e ".[server]"      # Server dependencies (also needs client for HTTP)
+# Or for full server: pip install -e ".[client,server]"
 ```
 
 > Requirements: Python 3.10+ and FFmpeg headers (needed by `faster-whisper` / `av`).  

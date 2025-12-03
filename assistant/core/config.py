@@ -51,6 +51,11 @@ class Config:
     # Billy Bass Configuration
     BILLY_BASS_ENABLED: bool = os.getenv("BILLY_BASS_ENABLED", "true").lower() in ("true", "1", "yes")
     
+    # Deployment Mode Configuration
+    DEPLOYMENT_MODE: Literal["full", "server", "client"] = os.getenv("DEPLOYMENT_MODE", "full")
+    SERVER_HOST: str = os.getenv("SERVER_HOST", "0.0.0.0")
+    SERVER_PORT: int = int(os.getenv("SERVER_PORT", "8000"))
+    
     @classmethod
     def get_stt_adapter(cls):
         """
@@ -120,5 +125,8 @@ class Config:
             print(f"    Voice: {cls.TTS_VOICE or 'default'}")
         
         print(f"  Billy Bass: {'enabled' if cls.BILLY_BASS_ENABLED else 'disabled'}")
+        print(f"  Deployment Mode: {cls.DEPLOYMENT_MODE}")
+        if cls.DEPLOYMENT_MODE == "server":
+            print(f"    Server: {cls.SERVER_HOST}:{cls.SERVER_PORT}")
         print()
 
