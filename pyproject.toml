@@ -14,12 +14,13 @@ dependencies = [
 
 [project.optional-dependencies]
 # Client mode dependencies (PocketBeagle - minimal footprint)
+# Note: Using uvicorn (not uvicorn[standard]) to avoid C extension compilation on ARM
 client = [
     "numpy>=2.1.1",           # billy_bass audio processing
     "sounddevice>=0.5.2",     # audio playback
     "soundfile>=0.13.1",      # audio file handling (playback, billy_bass, client_server)
     "fastapi>=0.104.0",       # client HTTP server
-    "uvicorn[standard]>=0.24.0",  # client HTTP server
+    "uvicorn>=0.24.0",        # client HTTP server (pure Python, no C extensions)
     "python-multipart>=0.0.6",  # Required for FastAPI form data (file uploads)
 ]
 
