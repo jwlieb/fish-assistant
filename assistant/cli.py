@@ -15,7 +15,7 @@ def audio_list():
         typer.echo(f"{idx:>2}  {name}")
 
 @app.command("audio:test")
-def audio_test(duration: float = typer.Option(5.0, "--duration", "-d"), device: int | None = None):
+def audio_test(duration: float = typer.Option(5.0, "--duration", "-d"), device: Optional[int] = None):
     """Record for DURATION seconds and play back."""
     if device is None:
         device = get_default_input_index()
@@ -33,7 +33,7 @@ def stt_transcribe(path: Path, model_size: str = "tiny"):
 @app.command("demo:record-and-transcribe")
 def demo_record_and_transcribe(
     duration: float = typer.Option(5.0, "--duration", "-d"),
-    device: int | None = None,
+    device: Optional[int] = None,
     model_size: str = "tiny",
     playback: bool = True,
 ):
@@ -50,7 +50,7 @@ def demo_record_and_transcribe(
 @app.command("test:pipeline")
 def test_pipeline(
     duration: float = typer.Option(5.0, "--duration", "-d"),
-    device: int | None = None,
+    device: Optional[int] = None,
     model_size: str = "tiny",
 ):
     """Test full pipeline: record audio → STT → NLU → Skills → TTS → Playback."""
@@ -85,7 +85,7 @@ def run_assistant():
 
 @app.command("converse")
 def converse(
-    device: int | None = None,
+    device: Optional[int] = None,
 ):
     """Start continuous conversation loop with VAD (hands-free mode)."""
     async def _converse():
@@ -122,7 +122,7 @@ def converse(
 def server(
     host: str = typer.Option(None, "--host", "-H", help="Host to bind to"),
     port: int = typer.Option(None, "--port", "-p", help="Port to bind to"),
-    device: int | None = typer.Option(None, "--device", "-d", help="Audio input device index"),
+    device: Optional[int] = typer.Option(None, "--device", "-d", help="Audio input device index"),
     client_url: str = typer.Option(None, "--client-url", "-c", help="Client server URL to push audio to"),
 ):
     """Start Fish Assistant in server mode (microphone + HTTP API)."""

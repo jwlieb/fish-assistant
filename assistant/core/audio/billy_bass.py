@@ -204,8 +204,9 @@ class BillyBass:
                     # Convert float32 [-1, 1] to int16 for RMS calculation
                     chunk_int16 = (chunk * 32767).astype(np.int16)
 
-                    # Control motor based on volume
-                    await asyncio.to_thread(self._move_mouth, chunk_int16)
+                    # Control motor based on volume (Python 3.7 compatible)
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(None, self._move_mouth, chunk_int16)
 
                     # Sleep for chunk duration to maintain real-time processing
                     await asyncio.sleep(chunk_duration_s)

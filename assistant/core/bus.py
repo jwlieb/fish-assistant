@@ -1,15 +1,15 @@
 """Simple async pub/sub event bus"""
 
 from collections import defaultdict
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Dict, List
 import asyncio
 import logging
 
-Subscriber = Callable[[dict[str, Any]], Awaitable[None]]
+Subscriber = Callable[[Dict[str, Any]], Awaitable[None]]
 
 class Bus:
     def __init__(self):
-        self._subs: dict[str, list[Subscriber]] = defaultdict(list)
+        self._subs: Dict[str, List[Subscriber]] = defaultdict(list)
         self._log = logging.getLogger("bus")
     
     def subscribe(self, topic: str, fn: callable):

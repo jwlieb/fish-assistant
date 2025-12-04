@@ -15,7 +15,7 @@ class Router:
     def __init__(self, bus: Bus):
         self.bus = bus
         # Keep policy empty and identity by default; add overrides only when needed.
-        self.intent_to_skill: dict[str, str] = {}
+        self.intent_to_skill: Dict[str, str] = {}
 
         self.bus.subscribe("nlu.intent", self._on_nlu_intent)
         self.bus.subscribe("skill.response", self._on_skill_response)

@@ -50,8 +50,9 @@ class Playback:
             sd.play(data, sr)
             self.log.debug("Playback started.")
 
-            # blocking wait 
-            await asyncio.to_thread(sd.wait)
+            # blocking wait (Python 3.7 compatible)
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, sd.wait)
             self.log.debug("Playback finished.")
 
             # Emit playback end
@@ -67,8 +68,9 @@ class Playback:
             await self.bus.publish(end_event.topic, end_event.dict())
             return
         
-        # Cleanup in worker thread
-        await asyncio.to_thread(self._safe_cleanup, path) 
+        # Cleanup in worker thread (Python 3.7 compatible)
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._safe_cleanup, path) 
 
     # Cleanup logic
     def _safe_cleanup(self, path):
