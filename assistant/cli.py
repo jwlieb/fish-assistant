@@ -242,9 +242,13 @@ def client(
         typer.echo(f"   Current: STT_MODE={Config.STT_MODE}, TTS_MODE={Config.TTS_MODE}")
         typer.echo(f"   Using server URLs: STT={Config.STT_SERVER_URL}, TTS={Config.TTS_SERVER_URL}")
     
-    async def _start_client():
-        bus = Bus()
-        
+    from contextlib import asynccontextmanager
+    
+    bus = Bus()
+    
+    @asynccontextmanager
+    async def lifespan(app_instance):
+        # Startup
         typer.echo("🐟 Starting Fish Assistant in client mode...")
         typer.echo(f"📡 Connecting to server:")
         typer.echo(f"   STT: {Config.STT_SERVER_URL}")
@@ -260,18 +264,23 @@ def client(
         typer.echo("✅ Client ready. Waiting for audio playback events...")
         typer.echo("Press Ctrl+C to stop\n")
         
-        # Create client HTTP app
-        client_app = create_client_app(bus)
+        yield
         
-        # Start uvicorn server (blocking)
-        uvicorn.run(
-            client_app,
-            host=host,
-            port=port,
-            log_level="info"
-        )
+        # Shutdown
+        typer.echo("\n🛑 Stopping client...")
+        bus.clear()
+        typer.echo("✅ Stopped.")
     
-    asyncio.run(_start_client())
+    # Create client HTTP app with lifespan
+    client_app = create_client_app(bus, lifespan=lifespan)
+    
+    # Start uvicorn server (blocking, creates its own event loop)
+    uvicorn.run(
+        client_app,
+        host=host,
+        port=port,
+        log_level="info"
+    )
 
 if __name__ == "__main__":
     app()

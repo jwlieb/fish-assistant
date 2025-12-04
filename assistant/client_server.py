@@ -17,21 +17,27 @@ from assistant.core.contracts import TTSAudio
 logger = logging.getLogger("client_server")
 
 
-def create_client_app(bus: Bus) -> FastAPI:
+def create_client_app(bus: Bus, lifespan=None) -> FastAPI:
     """
     Create FastAPI app for client mode.
     
     Args:
         bus: Event bus instance to publish audio events to
+        lifespan: Optional lifespan context manager
     
     Returns:
         FastAPI app instance
     """
-    app = FastAPI(
-        title="Fish Assistant Client API",
-        description="Client endpoint for receiving audio files",
-        version="0.1.0"
-    )
+    app_kwargs = {
+        "title": "Fish Assistant Client API",
+        "description": "Client endpoint for receiving audio files",
+        "version": "0.1.0"
+    }
+    
+    if lifespan:
+        app_kwargs["lifespan"] = lifespan
+    
+    app = FastAPI(**app_kwargs)
     
     # Add CORS middleware
     app.add_middleware(
@@ -59,8 +65,11 @@ def create_client_app(bus: Bus) -> FastAPI:
         
         Returns success status.
         """
+        logger.info("Client: Received audio play request: %s", audio.filename)
+        
         # Validate file type
         if not audio.filename.endswith(('.wav', '.WAV')):
+            logger.warning("Client: Invalid file type: %s", audio.filename)
             raise HTTPException(
                 status_code=400,
                 detail="Only WAV files are supported"
@@ -77,8 +86,8 @@ def create_client_app(bus: Bus) -> FastAPI:
                 f.write(content)
             
             logger.info(
-                "Received audio file: %s (%d bytes)",
-                audio.filename, len(content)
+                "Client: Saved audio file: %s (%d bytes) -> %s",
+                audio.filename, len(content), temp_path
             )
             
             # Get duration from audio file
@@ -90,10 +99,10 @@ def create_client_app(bus: Bus) -> FastAPI:
                 duration_s = 0.01  # minimal default to satisfy contract
             
             # Publish TTSAudio event to trigger playback
+            logger.info("Client: Publishing tts.audio event to bus (duration=%.2fs)", duration_s)
             audio_event = TTSAudio(wav_path=temp_path, duration_s=duration_s)
             await bus.publish(audio_event.topic, audio_event.dict())
-            
-            logger.info("Published audio event for playback: %s (%.2fs)", temp_path, duration_s)
+            logger.info("Client: Published tts.audio event successfully")
             
             return {
                 "status": "ok",

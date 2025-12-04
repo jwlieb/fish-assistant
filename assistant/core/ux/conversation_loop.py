@@ -164,7 +164,7 @@ class ConversationLoop:
         
         # Start recording if we've seen enough consecutive speech frames
         if speech_detected and self.speech_frame_count >= SPEECH_FRAMES_TO_START:
-            self.log.info("🎤 Speech detected! Starting recording (speech_frames=%d, audio_level=%.1f)", 
+            self.log.info("Speech detected! Starting recording (speech_frames=%d, audio_level=%.1f)", 
                          self.speech_frame_count, audio_level)
             self.state = "recording"
             self.recording_buffer = chunks.copy()  # Include the chunks that triggered detection
@@ -258,7 +258,7 @@ class ConversationLoop:
         """When STT detects text, log it."""
         try:
             transcript_event = STTTranscript(**payload)
-            self.log.info("🎤 TEXT DETECTED: '%s'", transcript_event.text)
+            self.log.info("TEXT DETECTED: '%s'", transcript_event.text)
             if transcript_event.confidence is not None:
                 self.log.debug("   Confidence: %.2f", transcript_event.confidence)
         except Exception as e:

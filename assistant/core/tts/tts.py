@@ -52,10 +52,10 @@ class TTS:
             return
 
         # run blocking synth in thread (Python 3.7 compatible)
-        self.log.info("synthesizing text (%d chars)", len(text))
+        self.log.info("TTS: Synthesizing text (%d chars): '%s'", len(text), text[:50])
         loop = asyncio.get_event_loop()
         path = await loop.run_in_executor(None, self.adapter.synth, text)
-        self.log.debug("synth complete: %s", path)
+        self.log.info("TTS: Synthesis complete: %s", path)
 
         # Get duration from audio file
         try:
@@ -67,7 +67,9 @@ class TTS:
 
         audio_event = TTSAudio(wav_path=path, duration_s=duration_s)
         same_trace(req, audio_event)
+        self.log.info("TTS: Publishing tts.audio event (path=%s, duration=%.2fs)", path, duration_s)
         await self.bus.publish(audio_event.topic, audio_event.dict())
+        self.log.info("TTS: Published tts.audio event successfully")
 
     async def stop(self):
         """Cleans up resources before shutdown"""

@@ -19,15 +19,17 @@ class Playback:
         self.bus.subscribe("tts.audio", self._on_audio)
 
     async def _on_audio(self, payload: dict):
+        self.log.info("Playback: Received tts.audio event")
         try:
             audio_event = TTSAudio(**payload)
+            self.log.info("Playback: Parsed audio event: %s (%.2fs)", audio_event.wav_path, audio_event.duration_s)
         except Exception:
-            self.log.warning("malformed tts.audio event, skipping")
+            self.log.warning("Playback: malformed tts.audio event, skipping")
             return
 
         path = audio_event.wav_path
         if not path or not os.path.exists(path):
-            self.log.warning("missing or invalid path: %s", path)
+            self.log.warning("Playback: missing or invalid path: %s", path)
             return
         
         try:
@@ -35,7 +37,7 @@ class Playback:
             size_bytes = os.path.getsize(path)
             info = sf.info(path)
             duration = info.frames / float(info.samplerate) if info.samplerate else 0.0
-            self.log.info("playing: %s (%.2fs, %d bytes, %d Hz, %d ch)", 
+            self.log.info("Playback: Starting playback: %s (%.2fs, %d bytes, %d Hz, %d ch)", 
                           path, duration, size_bytes, info.samplerate, info.channels)
             
             # Emit playback start
@@ -47,18 +49,20 @@ class Playback:
             data, sr = sf.read(path, dtype="float32", always_2d=True)
 
             # Non-blocking play start
+            self.log.info("Playback: Starting audio device playback...")
             sd.play(data, sr)
-            self.log.debug("Playback started.")
+            self.log.info("Playback: Audio device started")
 
             # blocking wait (Python 3.7 compatible)
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, sd.wait)
-            self.log.debug("Playback finished.")
+            self.log.info("Playback: Audio playback finished")
 
             # Emit playback end
             end_event = PlaybackEnd(wav_path=path, ok=True)
             same_trace(audio_event, end_event)
             await self.bus.publish(end_event.topic, end_event.dict())
+            self.log.info("Playback: Published playback.end event")
 
         except Exception as e:
             self.log.exception("failed to play %s", path)
