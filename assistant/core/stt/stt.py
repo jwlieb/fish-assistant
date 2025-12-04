@@ -63,23 +63,25 @@ class STT:
             return
 
         # run blocking transcription in thread (Python 3.7 compatible)
-        self.log.info("transcribing audio file: %s", wav_path)
+        self.log.info("STT: Transcribing audio file: %s (duration=%.2fs)", wav_path, audio_event.duration_s)
         try:
             # Use adapter's transcribe method
             loop = asyncio.get_event_loop()
             text = await loop.run_in_executor(None, self.adapter.transcribe, wav_path)
-            self.log.debug("transcription complete: %s", text[:50] if text else "(empty)")
+            self.log.info("STT: Transcription complete: '%s'", text[:100] if text else "(empty)")
         except Exception as e:
-            self.log.exception("transcription failed: %s", e)
+            self.log.exception("STT: Transcription failed: %s", e)
             return
 
         if not text or not text.strip():
-            self.log.debug("empty transcription, skipping")
+            self.log.warning("STT: Empty transcription (audio may be too short or silent), skipping")
             return
 
+        self.log.info("STT: Publishing stt.transcript event: '%s'", text.strip()[:50])
         transcript_event = STTTranscript(text=text.strip())
         same_trace(audio_event, transcript_event)
         await self.bus.publish(transcript_event.topic, transcript_event.dict())
+        self.log.info("STT: Published stt.transcript event successfully")
 
     async def stop(self):
         """Cleans up resources before shutdown"""

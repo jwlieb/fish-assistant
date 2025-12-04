@@ -22,8 +22,8 @@ from ..audio.recorder import TMP_DIR
 
 # Audio constants
 BLOCKSIZE = 1024  # samples per callback (64ms at 16kHz)
-SILENCE_FRAMES_THRESHOLD = 10  # ~300ms of silence to stop recording
-SPEECH_FRAMES_TO_START = 2  # ~60ms of speech to start recording
+SILENCE_FRAMES_THRESHOLD = 15  # ~450ms of silence to stop recording (increased to avoid false stops)
+SPEECH_FRAMES_TO_START = 3  # ~90ms of speech to start recording (increased to reduce false positives)
 
 
 class ConversationLoop:

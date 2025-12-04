@@ -40,15 +40,17 @@ class TTS:
         self.bus.subscribe("tts.request", self._on_request)
 
     async def _on_request(self, payload: dict):
+        self.log.info("TTS: Received tts.request event")
         try:
             req = TTSRequest(**payload)
+            self.log.info("TTS: Parsed request: '%s'", req.text[:50] if req.text else "(empty)")
         except Exception:
-            self.log.warning("malformed tts.request event, skipping")
+            self.log.warning("TTS: Malformed tts.request event, skipping")
             return
 
         text = req.text.strip()
         if not text:
-            self.log.debug("empty text, skipping")
+            self.log.warning("TTS: Empty text, skipping")
             return
 
         # run blocking synth in thread (Python 3.7 compatible)

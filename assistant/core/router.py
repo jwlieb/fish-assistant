@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, Awaitable, Callable
 
 from .bus import Bus
@@ -40,7 +41,9 @@ class Router:
             payload={"entities": e.entities, "original_text": e.original_text, "confidence": e.confidence},
         )
         same_trace(e, req)
+        logging.info("Router: Routing intent '%s' to skill '%s'", e.intent, skill)
         await self.bus.publish(req.topic, req.dict())
+        logging.info("Router: Published skill.request event")
 
     async def _on_skill_response(self, payload: Dict) -> None:
         try:
@@ -49,11 +52,14 @@ class Router:
             return
 
         if not e.say:
+            logging.debug("Router: Skill response has no 'say' field, skipping TTS")
             return
 
+        logging.info("Router: Forwarding skill response to TTS: '%s'", e.say[:50])
         tts = TTSRequest(text=e.say)
         same_trace(e, tts)
         await self.bus.publish(tts.topic, tts.dict())
+        logging.info("Router: Published tts.request event")
 
     # Optional: override routes in tests or future plugins
     def register_intent(self, intent: str, skill: str) -> None:
