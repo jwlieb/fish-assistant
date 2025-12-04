@@ -91,7 +91,7 @@ class ConversationLoop:
                 self._audio_log_counter += 1
                 # Log audio level every 50 callbacks (~3 seconds) to avoid spam
                 if self._audio_log_counter % 50 == 0:
-                    self.log.debug("Audio input: level=%.4f (device=%s)", audio_level, self.device_index)
+                    self.log.info("Audio input: level=%.4f (device=%s)", audio_level, self.device_index)
                 self.audio_queue.put(indata.copy())
         
         try:
@@ -152,12 +152,12 @@ class ConversationLoop:
                 else:
                     self.speech_frame_count = 0
         
-        # Log VAD activity periodically (every 10th call to avoid spam)
+        # Log VAD activity periodically (every 20th call to avoid spam)
         if not hasattr(self, '_vad_log_counter'):
             self._vad_log_counter = 0
         self._vad_log_counter += 1
-        if self._vad_log_counter % 10 == 0:
-            self.log.debug(
+        if self._vad_log_counter % 20 == 0:
+            self.log.info(
                 "VAD: audio_level=%.1f, speech_frames=%d/%d, speech_count=%d (need %d)",
                 audio_level, speech_frames, total_frames, self.speech_frame_count, SPEECH_FRAMES_TO_START
             )

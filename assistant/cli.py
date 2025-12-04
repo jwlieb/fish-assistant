@@ -128,6 +128,7 @@ def server(
     client_url: str = typer.Option(None, "--client-url", "-c", help="Client server URL to push audio to"),
 ):
     """Start Fish Assistant in server mode (microphone + HTTP API)."""
+    import logging
     import uvicorn
     from contextlib import asynccontextmanager
     from assistant.core.config import Config
@@ -135,6 +136,12 @@ def server(
     from assistant.core.ux.conversation_loop import ConversationLoop
     from assistant.app import start_server_components
     from assistant.server import create_app
+    
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(levelname)s] %(name)s: %(message)s"
+    )
     
     # Set deployment mode
     Config.DEPLOYMENT_MODE = "server"
@@ -213,11 +220,18 @@ def client(
     port: int = typer.Option(8001, "--port", "-p", help="Port to bind client server to"),
 ):
     """Start Fish Assistant in client mode (playback + motors, remote STT/TTS)."""
+    import logging
     import uvicorn
     from assistant.core.config import Config
     from assistant.core.bus import Bus
     from assistant.app import start_client_components
     from assistant.client_server import create_client_app
+    
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(levelname)s] %(name)s: %(message)s"
+    )
     
     # Set deployment mode
     Config.DEPLOYMENT_MODE = "client"
