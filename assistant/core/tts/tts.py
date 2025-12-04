@@ -2,7 +2,6 @@ import asyncio
 import logging
 import soundfile as sf
 from typing import Optional
-from assistant.core.tts.pyttsx3_adapter import Pyttsx3Adapter
 from assistant.core.contracts import TTSRequest, TTSAudio, same_trace
 
 
@@ -30,7 +29,11 @@ class TTS:
                     If None, creates a local Pyttsx3Adapter.
         """
         self.bus = bus
-        self.adapter = adapter or Pyttsx3Adapter()
+        if adapter is None:
+            # Only import pyttsx3 when actually needed (not in client mode)
+            from assistant.core.tts.pyttsx3_adapter import Pyttsx3Adapter
+            adapter = Pyttsx3Adapter()
+        self.adapter = adapter
         self.log = logging.getLogger("tts")
 
     async def start(self):

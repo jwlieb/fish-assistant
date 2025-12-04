@@ -5,7 +5,7 @@ import uuid
 import os
 
 # Base Event
-@dataclass(slots=True)
+@dataclass
 class Event:
     topic: str
     ts_ms: int = field(default_factory=lambda: int(time.time() * 1000))
@@ -16,7 +16,7 @@ class Event:
 
 # Core Events
 
-@dataclass(slots=True)
+@dataclass
 class AudioRecorded(Event):
     topic: str = "audio.recorded"
     wav_path: str = ""        # file path to recorded WAV
@@ -32,7 +32,7 @@ class AudioRecorded(Event):
         except Exception:
             pass
 
-@dataclass(slots=True)
+@dataclass
 class STTTranscript(Event):
     topic: str = "stt.transcript"
     text: str = ""
@@ -40,7 +40,7 @@ class STTTranscript(Event):
     # Optional per-word timing: [{"word":"hi","start":0.12,"end":0.28}]
     words: Optional[List[Dict[str, Any]]] = None
 
-@dataclass(slots=True)
+@dataclass
 class NLUIntent(Event):
     topic: str = "nlu.intent"
     intent: str = "unknown"   # e.g., "time", "timer", "weather"
@@ -48,26 +48,26 @@ class NLUIntent(Event):
     confidence: float = 0.0
     original_text: str = ""
 
-@dataclass(slots=True)
+@dataclass
 class SkillRequest(Event):
     topic: str = "skill.request"
     skill: str = ""           # target skill name (identity mapping by default)
     payload: Dict[str, Any] = field(default_factory=dict)
 
-@dataclass(slots=True)
+@dataclass
 class SkillResponse(Event):
     topic: str = "skill.response"
     skill: str = ""
     say: Optional[str] = None     # simple text to speak (optional)
     data: Dict[str, Any] = field(default_factory=dict)
 
-@dataclass(slots=True)
+@dataclass
 class TTSRequest(Event):
     topic: str = "tts.request"
     text: str = ""
     voice: Optional[str] = None   # adapter-specific (optional)
 
-@dataclass(slots=True)
+@dataclass
 class TTSAudio(Event):
     topic: str = "tts.audio"
     wav_path: str = ""
@@ -77,26 +77,26 @@ class TTSAudio(Event):
         if not self.wav_path or self.duration_s <= 0.0:
             raise ValueError("TTSAudio requires non-empty wav_path and duration_s > 0")
 
-@dataclass(slots=True)
+@dataclass
 class PlaybackStart(Event):
     topic: str = "audio.playback.start"
     wav_path: str = ""
 
-@dataclass(slots=True)
+@dataclass
 class PlaybackEnd(Event):
     topic: str = "audio.playback.end"
     wav_path: str = ""
     ok: bool = True
 
 # Fish mouth control
-@dataclass(slots=True)
+@dataclass
 class MouthEnvelope(Event):
     topic: str = "anim.mouth.envelope"
     env: List[float] = field(default_factory=list)  # normalized [0..1]
     hop_ms: int = 20
 
 # Fish state for debugging
-@dataclass(slots=True)
+@dataclass
 class UXState(Event):
     topic: str = "ux.state"
     state: str = "idle"   # "idle","listening","thinking","speaking","error","muted"

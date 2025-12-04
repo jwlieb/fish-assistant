@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from .rules import RulesNLU
 from .types import NLUResult
 from ..contracts import STTTranscript, NLUIntent, same_trace
@@ -9,7 +10,7 @@ class NLU:
     Uses RulesNLU adapter for classification.
     """
 
-    def __init__(self, bus, adapter: RulesNLU | None = None):
+    def __init__(self, bus, adapter: Optional[RulesNLU] = None):
         self.bus = bus
         self.adapter = adapter or RulesNLU()
         self.log = logging.getLogger("nlu")

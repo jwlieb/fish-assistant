@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Optional, List
 import queue
 import sys
 import tempfile
@@ -27,7 +28,7 @@ class RecordResult:
 def _stamp() -> str:
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
-def record_wav(duration_s: float = 5.0, device_index: int | None = None) -> RecordResult:
+def record_wav(duration_s: float = 5.0, device_index: Optional[int] = None) -> RecordResult:
     """
     Record mono PCM16 WAV up to `duration_s`. Returns file path + duration.
     """
@@ -35,7 +36,7 @@ def record_wav(duration_s: float = 5.0, device_index: int | None = None) -> Reco
         sd.default.device = (device_index, None)
 
     q = queue.Queue()
-    frames: list[np.ndarray] = []
+    frames: List[np.ndarray] = []
 
     def _callback(indata, frames_count, time_info, status):
         if status:

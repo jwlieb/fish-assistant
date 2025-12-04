@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 from .types import NLUResult
 
 _TIME = re.compile(r"\b(time|what(?:'s| is) the time|time in)\b", re.I)
@@ -8,7 +9,7 @@ _JOKE = re.compile(r"\b(joke|funny|make me laugh)\b", re.I)
 _MUSIC = re.compile(r"\b(play|music|song|songs|playlist)\b", re.I)
 _HELLO = re.compile(r"\b(hi|hello|hey|thanks|bye)\b", re.I)
 
-def _duration_sec(text: str) -> int | None:
+def _duration_sec(text: str) -> Optional[int]:
     # trivial parser; expand later
     import re
     s = 0

@@ -13,9 +13,10 @@ from datetime import datetime
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
+from typing import Optional, List
 
 from ..bus import Bus
-from ..contracts import AudioRecorded, PlaybackStart, PlaybackEnd, UXState
+from ..contracts import AudioRecorded, PlaybackStart, PlaybackEnd, UXState, STTTranscript
 from ..audio.vad import VAD, FRAME_SIZE, SR, CHANNELS, DTYPE
 from ..audio.recorder import TMP_DIR
 
@@ -32,7 +33,7 @@ class ConversationLoop:
     States: idle → listening → recording → thinking → speaking → idle
     """
 
-    def __init__(self, bus: Bus, vad: VAD | None = None, device_index: int | None = None):
+    def __init__(self, bus: Bus, vad: Optional[VAD] = None, device_index: Optional[int] = None):
         self.bus = bus
         self.vad = vad or VAD(aggressiveness=2)
         self.device_index = device_index
@@ -42,7 +43,7 @@ class ConversationLoop:
         self.state = "idle"
         self.running = False
         self.audio_queue = queue.Queue()
-        self.recording_buffer: list[np.ndarray] = []
+        self.recording_buffer: List[np.ndarray] = []
         self.silence_frame_count = 0
         self.speech_frame_count = 0
         
@@ -55,6 +56,8 @@ class ConversationLoop:
         # Subscribe to playback events to track state
         self.bus.subscribe("audio.playback.start", self._on_playback_start)
         self.bus.subscribe("audio.playback.end", self._on_playback_end)
+        # Subscribe to STT transcripts to log detected text
+        self.bus.subscribe("stt.transcript", self._on_transcript)
         
         self.running = True
         self.state = "idle"
@@ -81,6 +84,14 @@ class ConversationLoop:
             if status:
                 self.log.warning("Audio callback status: %s", status)
             if self.running:
+                # Calculate audio level for debugging
+                audio_level = np.abs(indata).mean()
+                if not hasattr(self, '_audio_log_counter'):
+                    self._audio_log_counter = 0
+                self._audio_log_counter += 1
+                # Log audio level every 50 callbacks (~3 seconds) to avoid spam
+                if self._audio_log_counter % 50 == 0:
+                    self.log.debug("Audio input: level=%.4f (device=%s)", audio_level, self.device_index)
                 self.audio_queue.put(indata.copy())
         
         try:
@@ -122,20 +133,39 @@ class ConversationLoop:
         # Convert to single array
         recent_audio = np.concatenate(chunks)  # ~192ms = ~6-7 VAD frames
         
+        # Calculate audio level for debugging
+        audio_level = np.abs(recent_audio).mean() if len(recent_audio) > 0 else 0
+        
         # Check each VAD frame (480 samples = 30ms)
         speech_detected = False
+        speech_frames = 0
+        total_frames = 0
         for i in range(0, len(recent_audio), FRAME_SIZE):
             frame = recent_audio[i:i + FRAME_SIZE]
             if len(frame) == FRAME_SIZE:
-                if self.vad.is_speech(frame):
+                total_frames += 1
+                is_speech = self.vad.is_speech(frame)
+                if is_speech:
                     speech_detected = True
+                    speech_frames += 1
                     self.speech_frame_count += 1
                 else:
                     self.speech_frame_count = 0
         
+        # Log VAD activity periodically (every 10th call to avoid spam)
+        if not hasattr(self, '_vad_log_counter'):
+            self._vad_log_counter = 0
+        self._vad_log_counter += 1
+        if self._vad_log_counter % 10 == 0:
+            self.log.debug(
+                "VAD: audio_level=%.1f, speech_frames=%d/%d, speech_count=%d (need %d)",
+                audio_level, speech_frames, total_frames, self.speech_frame_count, SPEECH_FRAMES_TO_START
+            )
+        
         # Start recording if we've seen enough consecutive speech frames
         if speech_detected and self.speech_frame_count >= SPEECH_FRAMES_TO_START:
-            self.log.info("Speech detected, starting recording")
+            self.log.info("🎤 Speech detected! Starting recording (speech_frames=%d, audio_level=%.1f)", 
+                         self.speech_frame_count, audio_level)
             self.state = "recording"
             self.recording_buffer = chunks.copy()  # Include the chunks that triggered detection
             self.silence_frame_count = 0
@@ -223,4 +253,14 @@ class ConversationLoop:
                 await self.bus.publish("ux.state", UXState(state="idle").dict())
         except Exception as e:
             self.log.warning("Error handling playback.end: %s", e)
+    
+    async def _on_transcript(self, payload: dict):
+        """When STT detects text, log it."""
+        try:
+            transcript_event = STTTranscript(**payload)
+            self.log.info("🎤 TEXT DETECTED: '%s'", transcript_event.text)
+            if transcript_event.confidence is not None:
+                self.log.debug("   Confidence: %.2f", transcript_event.confidence)
+        except Exception as e:
+            self.log.warning("Error handling stt.transcript: %s", e)
 

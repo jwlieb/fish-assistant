@@ -1,6 +1,7 @@
 import sounddevice as sd
+from typing import List, Tuple
 
-def list_input_devices() -> list[tuple[int, str]]:
+def list_input_devices() -> List[Tuple[int, str]]:
     infos = sd.query_devices()
     inputs = []
     for idx, d in enumerate(infos):

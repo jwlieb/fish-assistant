@@ -17,7 +17,7 @@ Server API Expected:
 
 import logging
 from pathlib import Path
-from typing import Literal
+from typing import Union
 import httpx
 import asyncio
 
@@ -25,9 +25,9 @@ logger = logging.getLogger("remote_stt")
 
 
 async def transcribe_file_async(
-    path: str | Path,
+    path: Union[str, Path],
     server_url: str,
-    model_size: Literal["tiny", "base", "small", "medium"] = "tiny",
+    model_size: str = "tiny",  # "tiny", "base", "small", "medium"
     timeout: float = 30.0,
 ) -> str:
     """
@@ -83,9 +83,9 @@ async def transcribe_file_async(
 
 
 def transcribe_file(
-    path: str | Path,
+    path: Union[str, Path],
     server_url: str,
-    model_size: Literal["tiny", "base", "small", "medium"] = "tiny",
+    model_size: str = "tiny",  # "tiny", "base", "small", "medium"
     timeout: float = 30.0,
 ) -> str:
     """
@@ -143,7 +143,7 @@ class RemoteSTTAdapter:
     def __init__(
         self,
         server_url: str,
-        model_size: Literal["tiny", "base", "small", "medium"] = "tiny",
+        model_size: str = "tiny",  # "tiny", "base", "small", "medium"
         timeout: float = 30.0,
     ):
         """
@@ -159,7 +159,7 @@ class RemoteSTTAdapter:
         self.timeout = timeout
         self.log = logging.getLogger("remote_stt")
     
-    def transcribe(self, path: str | Path) -> str:
+    def transcribe(self, path: Union[str, Path]) -> str:
         """
         Transcribe audio file using remote server.
         

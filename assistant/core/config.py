@@ -7,7 +7,7 @@ local vs remote adapters and server URLs.
 
 import os
 import logging
-from typing import Literal, Optional
+from typing import Optional
 from pathlib import Path
 
 try:
@@ -37,13 +37,13 @@ class Config:
     """
     
     # STT Configuration
-    STT_MODE: Literal["local", "remote"] = os.getenv("STT_MODE", "local")
+    STT_MODE: str = os.getenv("STT_MODE", "local")  # "local" or "remote"
     STT_SERVER_URL: str = os.getenv("STT_SERVER_URL", "http://localhost:8000")
-    STT_MODEL_SIZE: Literal["tiny", "base", "small", "medium"] = os.getenv("STT_MODEL_SIZE", "tiny")
+    STT_MODEL_SIZE: str = os.getenv("STT_MODEL_SIZE", "tiny")  # "tiny", "base", "small", "medium"
     STT_TIMEOUT: float = float(os.getenv("STT_TIMEOUT", "30.0"))
     
     # TTS Configuration
-    TTS_MODE: Literal["local", "remote"] = os.getenv("TTS_MODE", "local")
+    TTS_MODE: str = os.getenv("TTS_MODE", "local")  # "local" or "remote"
     TTS_SERVER_URL: str = os.getenv("TTS_SERVER_URL", "http://localhost:8000")
     TTS_VOICE: Optional[str] = os.getenv("TTS_VOICE", None)
     TTS_TIMEOUT: float = float(os.getenv("TTS_TIMEOUT", "30.0"))
@@ -52,7 +52,7 @@ class Config:
     BILLY_BASS_ENABLED: bool = os.getenv("BILLY_BASS_ENABLED", "true").lower() in ("true", "1", "yes")
     
     # Deployment Mode Configuration
-    DEPLOYMENT_MODE: Literal["full", "server", "client"] = os.getenv("DEPLOYMENT_MODE", "full")
+    DEPLOYMENT_MODE: str = os.getenv("DEPLOYMENT_MODE", "full")  # "full", "server", or "client"
     SERVER_HOST: str = os.getenv("SERVER_HOST", "0.0.0.0")
     SERVER_PORT: int = int(os.getenv("SERVER_PORT", "8000"))
     

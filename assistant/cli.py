@@ -1,9 +1,9 @@
 import typer
 import asyncio
 from pathlib import Path
+from typing import Optional
 from assistant.core.audio.devices import list_input_devices, get_default_input_index
 from assistant.core.audio.recorder import record_wav, playback_wav
-from assistant.core.stt.whisper_adapter import transcribe_file
 from assistant.app import main as app_main
 
 app = typer.Typer(help="Fish Assistant CLI")
@@ -27,6 +27,7 @@ def audio_test(duration: float = typer.Option(5.0, "--duration", "-d"), device: 
 @app.command("stt:transcribe")
 def stt_transcribe(path: Path, model_size: str = "tiny"):
     """Transcribe a WAV/MP3 file and print text."""
+    from assistant.core.stt.whisper_adapter import transcribe_file
     text = transcribe_file(path, model_size=model_size)
     typer.echo(text)
 
@@ -38,6 +39,7 @@ def demo_record_and_transcribe(
     playback: bool = True,
 ):
     """Record, (optionally) play back, then transcribe and print."""
+    from assistant.core.stt.whisper_adapter import transcribe_file
     if device is None:
         device = get_default_input_index()
     res = record_wav(duration_s=duration, device_index=device)

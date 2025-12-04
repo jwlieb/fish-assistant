@@ -2,7 +2,6 @@ import asyncio
 import logging
 from pathlib import Path
 from typing import Union, Optional
-from assistant.core.stt.whisper_adapter import WhisperAdapter
 from assistant.core.contracts import AudioRecorded, STTTranscript, same_trace
 
 
@@ -36,7 +35,11 @@ class STT:
             model_size: Model size for local adapter (ignored if adapter provided)
         """
         self.bus = bus
-        self.adapter = adapter or WhisperAdapter(model_size=model_size)
+        if adapter is None:
+            # Only import whisper when actually needed (not in client mode)
+            from assistant.core.stt.whisper_adapter import WhisperAdapter
+            adapter = WhisperAdapter(model_size=model_size)
+        self.adapter = adapter
         self.log = logging.getLogger("stt")
 
     async def start(self):
