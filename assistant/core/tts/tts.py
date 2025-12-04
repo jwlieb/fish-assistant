@@ -1,16 +1,16 @@
 import asyncio
 import logging
 import soundfile as sf
-from typing import Protocol
+from typing import Optional
 from assistant.core.tts.pyttsx3_adapter import Pyttsx3Adapter
 from assistant.core.contracts import TTSRequest, TTSAudio, same_trace
 
 
-class TTSAdapter(Protocol):
+class TTSAdapter:
     """Protocol for TTS adapters - must implement synth method."""
     def synth(self, text: str) -> str:
         """Synthesize text to speech and return path to WAV file."""
-        ...
+        raise NotImplementedError
 
 
 class TTS:
@@ -20,7 +20,7 @@ class TTS:
     Can use either local (Pyttsx3Adapter) or remote (RemoteTTSAdapter) adapters.
     """
 
-    def __init__(self, bus, adapter: TTSAdapter | None = None):
+    def __init__(self, bus, adapter: Optional[TTSAdapter] = None):
         """
         Initialize TTS component.
         
@@ -48,9 +48,10 @@ class TTS:
             self.log.debug("empty text, skipping")
             return
 
-        # run blocking synth in thread
+        # run blocking synth in thread (Python 3.7 compatible)
         self.log.info("synthesizing text (%d chars)", len(text))
-        path = await asyncio.to_thread(self.adapter.synth, text)
+        loop = asyncio.get_event_loop()
+        path = await loop.run_in_executor(None, self.adapter.synth, text)
         self.log.debug("synth complete: %s", path)
 
         # Get duration from audio file
@@ -72,5 +73,6 @@ class TTS:
     
         # close adapter if possible
         if hasattr(self.adapter, 'close') and callable(self.adapter.close):
-            # prevent blocking event loop
-            await asyncio.to_thread(self.adapter.close)
+            # prevent blocking event loop (Python 3.7 compatible)
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self.adapter.close)

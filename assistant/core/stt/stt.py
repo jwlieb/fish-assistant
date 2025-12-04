@@ -1,16 +1,16 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Union, Optional
 from assistant.core.stt.whisper_adapter import WhisperAdapter
 from assistant.core.contracts import AudioRecorded, STTTranscript, same_trace
 
 
-class STTAdapter(Protocol):
+class STTAdapter:
     """Protocol for STT adapters - must implement transcribe method."""
-    def transcribe(self, path: str | Path) -> str:
+    def transcribe(self, path: Union[str, Path]) -> str:
         """Transcribe audio file and return text."""
-        ...
+        raise NotImplementedError
 
 
 class STT:
@@ -23,8 +23,8 @@ class STT:
     def __init__(
         self,
         bus,
-        adapter: STTAdapter | None = None,
-        model_size: Literal["tiny", "base", "small", "medium"] = "tiny",
+        adapter: Optional[STTAdapter] = None,
+        model_size: str = "tiny",  # "tiny", "base", "small", "medium"
     ):
         """
         Initialize STT component.
@@ -59,11 +59,12 @@ class STT:
             self.log.warning("audio file does not exist: %s", wav_path)
             return
 
-        # run blocking transcription in thread
+        # run blocking transcription in thread (Python 3.7 compatible)
         self.log.info("transcribing audio file: %s", wav_path)
         try:
             # Use adapter's transcribe method
-            text = await asyncio.to_thread(self.adapter.transcribe, wav_path)
+            loop = asyncio.get_event_loop()
+            text = await loop.run_in_executor(None, self.adapter.transcribe, wav_path)
             self.log.debug("transcription complete: %s", text[:50] if text else "(empty)")
         except Exception as e:
             self.log.exception("transcription failed: %s", e)
