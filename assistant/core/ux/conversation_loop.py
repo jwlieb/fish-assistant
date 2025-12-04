@@ -8,6 +8,7 @@ records when speech is detected, and triggers the pipeline.
 import asyncio
 import logging
 import queue
+import time
 from datetime import datetime
 
 import numpy as np
@@ -103,18 +104,42 @@ class ConversationLoop:
                 callback=audio_callback
             ):
                 while self.running:
-                    if self.state == "idle":
-                        await self._detect_speech_start()
-                    elif self.state == "recording":
-                        await self._detect_speech_end()
-                    elif self.state == "thinking":
-                        # Waiting for pipeline to process
+                    try:
+                        if self.state == "idle":
+                            await self._detect_speech_start()
+                        elif self.state == "recording":
+                            await self._detect_speech_end()
+                        elif self.state == "thinking":
+                            # Waiting for pipeline to process (with timeout)
+                            if not hasattr(self, '_thinking_start_time'):
+                                self._thinking_start_time = time.time()
+                            # Timeout after 30 seconds - something went wrong
+                            if time.time() - self._thinking_start_time > 30:
+                                self.log.warning("Thinking state timeout, resetting to idle")
+                                self.state = "idle"
+                                delattr(self, '_thinking_start_time')
+                            await asyncio.sleep(0.1)
+                        elif self.state == "speaking":
+                            # Waiting for TTS playback to finish (with timeout)
+                            if not hasattr(self, '_speaking_start_time'):
+                                self._speaking_start_time = time.time()
+                            # Timeout after 60 seconds - playback probably finished
+                            if time.time() - self._speaking_start_time > 60:
+                                self.log.warning("Speaking state timeout, resetting to idle")
+                                self.state = "idle"
+                                await self.bus.publish("ux.state", UXState(state="idle").dict())
+                                delattr(self, '_speaking_start_time')
+                            await asyncio.sleep(0.1)
+                        else:
+                            self.log.warning("Unknown state: %s, resetting to idle", self.state)
+                            self.state = "idle"
+                        
+                        await asyncio.sleep(0.01)  # Small delay to prevent busy-waiting
+                    except Exception as e:
+                        self.log.exception("Error in conversation loop state machine: %s", e)
+                        # Reset to idle on error
+                        self.state = "idle"
                         await asyncio.sleep(0.1)
-                    elif self.state == "speaking":
-                        # Waiting for TTS playback to finish
-                        await asyncio.sleep(0.1)
-                    
-                    await asyncio.sleep(0.01)  # Small delay to prevent busy-waiting
                     
         except Exception as e:
             self.log.exception("Error in conversation loop: %s", e)
@@ -122,54 +147,78 @@ class ConversationLoop:
     
     async def _detect_speech_start(self):
         """Use VAD to detect when speech starts."""
-        # Collect recent audio chunks (keep last 3 chunks = ~192ms)
+        # Collect recent audio chunks (keep last 5 chunks = ~320ms for better detection)
         chunks = []
-        while not self.audio_queue.empty() and len(chunks) < 3:
+        while not self.audio_queue.empty() and len(chunks) < 5:
             chunks.append(self.audio_queue.get())
         
         if not chunks:
             return
         
         # Convert to single array
-        recent_audio = np.concatenate(chunks)  # ~192ms = ~6-7 VAD frames
+        recent_audio = np.concatenate(chunks)  # ~320ms = ~10-11 VAD frames
         
         # Calculate audio level for debugging
-        audio_level = np.abs(recent_audio).mean() if len(recent_audio) > 0 else 0
+        audio_level = np.abs(recent_audio).mean() * 100 if len(recent_audio) > 0 else 0
         
         # Check each VAD frame (480 samples = 30ms)
-        speech_detected = False
-        speech_frames = 0
+        speech_frames_in_window = 0
         total_frames = 0
+        consecutive_speech = 0
+        max_consecutive = 0
+        
         for i in range(0, len(recent_audio), FRAME_SIZE):
             frame = recent_audio[i:i + FRAME_SIZE]
             if len(frame) == FRAME_SIZE:
                 total_frames += 1
-                is_speech = self.vad.is_speech(frame)
-                if is_speech:
-                    speech_detected = True
-                    speech_frames += 1
-                    self.speech_frame_count += 1
-                else:
-                    self.speech_frame_count = 0
+                try:
+                    is_speech = self.vad.is_speech(frame)
+                    if is_speech:
+                        speech_frames_in_window += 1
+                        consecutive_speech += 1
+                        max_consecutive = max(max_consecutive, consecutive_speech)
+                    else:
+                        consecutive_speech = 0
+                except Exception as e:
+                    self.log.warning("VAD error on frame: %s", e)
+                    consecutive_speech = 0
         
-        # Log VAD activity periodically (every 20th call to avoid spam)
+        # Update speech_frame_count based on consecutive speech
+        if max_consecutive > 0:
+            self.speech_frame_count = max(self.speech_frame_count, max_consecutive)
+        else:
+            # Only reset if we've seen no speech for a while (allow brief pauses)
+            if self.speech_frame_count > 0:
+                self.speech_frame_count -= 1  # Decay instead of instant reset
+        
+        # Log VAD activity more frequently when audio level is high
+        should_log = False
         if not hasattr(self, '_vad_log_counter'):
             self._vad_log_counter = 0
         self._vad_log_counter += 1
-        if self._vad_log_counter % 20 == 0:
+        
+        # Log every 10 calls, or more frequently if audio level is high
+        if self._vad_log_counter % 10 == 0 or audio_level > 20:
+            should_log = True
+        
+        if should_log:
             self.log.info(
-                "VAD: audio_level=%.1f, speech_frames=%d/%d, speech_count=%d (need %d)",
-                audio_level, speech_frames, total_frames, self.speech_frame_count, SPEECH_FRAMES_TO_START
+                "VAD: audio_level=%.1f, speech_frames=%d/%d, consecutive=%d, count=%d (need %d)",
+                audio_level, speech_frames_in_window, total_frames, max_consecutive, 
+                self.speech_frame_count, SPEECH_FRAMES_TO_START
             )
         
-        # Start recording if we've seen enough consecutive speech frames
-        if speech_detected and self.speech_frame_count >= SPEECH_FRAMES_TO_START:
-            self.log.info("Speech detected! Starting recording (speech_frames=%d, audio_level=%.1f)", 
-                         self.speech_frame_count, audio_level)
+        # Start recording if we've seen enough speech frames (either consecutive or total)
+        # Use a lower threshold if audio level is high (likely speech)
+        threshold = SPEECH_FRAMES_TO_START if audio_level < 30 else max(1, SPEECH_FRAMES_TO_START - 1)
+        
+        if speech_frames_in_window >= 2 and self.speech_frame_count >= threshold:
+            self.log.info("Speech detected! Starting recording (speech_frames=%d/%d, consecutive=%d, audio_level=%.1f)", 
+                         speech_frames_in_window, total_frames, max_consecutive, audio_level)
             self.state = "recording"
             self.recording_buffer = chunks.copy()  # Include the chunks that triggered detection
             self.silence_frame_count = 0
-            self.speech_frame_count = 0
+            self.speech_frame_count = 0  # Reset after detection
             await self.bus.publish("ux.state", UXState(state="listening").dict())
     
     async def _detect_speech_end(self):
@@ -230,15 +279,17 @@ class ConversationLoop:
         self.state = "thinking"
         self.recording_buffer = []
         self.silence_frame_count = 0
+        self._thinking_start_time = time.time()
         await self.bus.publish("ux.state", UXState(state="thinking").dict())
     
     async def _on_playback_start(self, payload: dict):
         """When TTS playback starts, update state to speaking."""
         try:
             playback_event = PlaybackStart(**payload)
-            if self.state == "thinking":
+            if self.state in ("thinking", "idle"):  # Allow transition from idle too (in case we missed thinking)
                 self.log.info("Playback started, fish is speaking")
                 self.state = "speaking"
+                self._speaking_start_time = time.time()
                 await self.bus.publish("ux.state", UXState(state="speaking").dict())
         except Exception as e:
             self.log.warning("Error handling playback.start: %s", e)
