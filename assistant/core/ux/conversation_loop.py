@@ -255,11 +255,23 @@ class ConversationLoop:
         if not self.recording_buffer:
             self.log.warning("No audio recorded, returning to idle")
             self.state = "idle"
+            await self.bus.publish("ux.state", UXState(state="idle").dict())
             return
         
         # Concatenate all recorded chunks
         full_audio = np.concatenate(self.recording_buffer)
         duration_s = len(full_audio) / SR
+        
+        # Minimum duration check - if too short, likely false positive or noise
+        MIN_RECORDING_DURATION = 0.5  # 500ms minimum
+        if duration_s < MIN_RECORDING_DURATION:
+            self.log.warning("Recording too short (%.2fs < %.2fs), likely false positive, returning to idle", 
+                           duration_s, MIN_RECORDING_DURATION)
+            self.state = "idle"
+            self.recording_buffer = []
+            self.silence_frame_count = 0
+            await self.bus.publish("ux.state", UXState(state="idle").dict())
+            return
         
         # Save to WAV file
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -306,12 +318,25 @@ class ConversationLoop:
             self.log.warning("Error handling playback.end: %s", e)
     
     async def _on_transcript(self, payload: dict):
-        """When STT detects text, log it."""
+        """When STT detects text, log it and reset state if empty."""
         try:
             transcript_event = STTTranscript(**payload)
+            if not transcript_event.text or not transcript_event.text.strip():
+                # Empty transcription - reset to idle immediately
+                self.log.info("Empty transcription received, resetting to idle")
+                if self.state == "thinking":
+                    self.state = "idle"
+                    await self.bus.publish("ux.state", UXState(state="idle").dict())
+                return
+            
             self.log.info("TEXT DETECTED: '%s'", transcript_event.text)
             if transcript_event.confidence is not None:
                 self.log.debug("   Confidence: %.2f", transcript_event.confidence)
         except Exception as e:
             self.log.warning("Error handling stt.transcript: %s", e)
+            # On error, also reset to idle to prevent getting stuck
+            if self.state == "thinking":
+                self.log.info("Error handling transcript, resetting to idle")
+                self.state = "idle"
+                await self.bus.publish("ux.state", UXState(state="idle").dict())
 

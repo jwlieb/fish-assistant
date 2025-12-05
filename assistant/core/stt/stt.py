@@ -74,7 +74,11 @@ class STT:
             return
 
         if not text or not text.strip():
-            self.log.warning("STT: Empty transcription (audio may be too short or silent), skipping")
+            self.log.warning("STT: Empty transcription (audio may be too short or silent), publishing empty transcript to reset state")
+            # Publish empty transcript so conversation loop can reset to idle
+            transcript_event = STTTranscript(text="")
+            same_trace(audio_event, transcript_event)
+            await self.bus.publish(transcript_event.topic, transcript_event.dict())
             return
 
         self.log.info("STT: Publishing stt.transcript event: '%s'", text.strip()[:50])
