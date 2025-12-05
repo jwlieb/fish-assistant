@@ -65,11 +65,48 @@ class Pyttsx3Adapter:
         # Run and wait for completion
         engine.runAndWait()
 
-        # naive workaround to file empty race condition
-        # this is a ttsx3 issue...
-        # higher quality model the longer the sleep
-        # en-GB Daniel (classic) needs 3s, Albert needs 0.5
-        time.sleep(3)
+        # Poll for file completion instead of fixed sleep
+        # pyttsx3 has a race condition where runAndWait() returns before file is fully written
+        # We poll for file existence, size, and validity to minimize latency
+        max_wait = 5.0  # Maximum wait time (safety timeout)
+        poll_interval = 0.05  # Check every 50ms
+        stability_checks = 2  # Number of consecutive valid checks required
+        waited = 0.0
+        valid_checks = 0
+        
+        while waited < max_wait:
+            if os.path.exists(out_path):
+                file_size = os.path.getsize(out_path)
+                if file_size > 0:
+                    # File exists and has content, verify it's a valid audio file
+                    try:
+                        # Quick validation: try to read file info
+                        info = sf.info(out_path)
+                        if info.frames > 0 and info.samplerate > 0:
+                            valid_checks += 1
+                            if valid_checks >= stability_checks:
+                                # File is valid and stable, ready to proceed
+                                self.log.debug("File ready after %.2fs (size: %d bytes, frames: %d)", 
+                                             waited, file_size, info.frames)
+                                break
+                        else:
+                            valid_checks = 0  # Reset if file becomes invalid
+                    except Exception:
+                        # File might still be writing, continue polling
+                        valid_checks = 0
+                else:
+                    valid_checks = 0  # Reset if file is empty
+            else:
+                valid_checks = 0  # Reset if file doesn't exist yet
+            
+            time.sleep(poll_interval)
+            waited += poll_interval
+        
+        if waited >= max_wait:
+            self.log.warning("File polling timeout after %.2fs, proceeding anyway", max_wait)
+            # Verify file exists and has content before proceeding
+            if not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
+                raise RuntimeError(f"TTS output file not ready after {max_wait}s: {out_path}")
 
         # Explicit stop to finalize file write and release resources
         engine.stop()
