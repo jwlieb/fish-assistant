@@ -76,15 +76,15 @@ class Pyttsx3Adapter:
 
         self.log.info("pyttsx3 wrote %s", out_path)
         
-        # Resample to 44100 Hz for compatibility with USB audio devices
-        # pyttsx3 typically outputs at 22050 Hz, but many USB devices only support 44100/48000 Hz
-        resampled_path = self._resample_to_44100(out_path)
+        # Resample to 48000 Hz for compatibility with USB audio devices
+        # pyttsx3 typically outputs at 22050 Hz, but many USB devices only support 48000 Hz
+        resampled_path = self._resample_to_48000(out_path)
         
         return resampled_path
     
-    def _resample_to_44100(self, input_path: str) -> str:
+    def _resample_to_48000(self, input_path: str) -> str:
         """
-        Resample audio file to 44100 Hz using sox or ffmpeg.
+        Resample audio file to 48000 Hz using sox or ffmpeg.
         Returns path to resampled file (or original if resampling fails/unnecessary).
         """
         try:
@@ -92,19 +92,19 @@ class Pyttsx3Adapter:
             info = sf.info(input_path)
             current_sr = info.samplerate
             
-            if current_sr == 44100:
+            if current_sr == 48000:
                 # Already at target rate
                 return input_path
             
-            self.log.info("Resampling TTS audio from %d Hz to 44100 Hz", current_sr)
+            self.log.info("Resampling TTS audio from %d Hz to 48000 Hz", current_sr)
             
             # Create output path
-            output_path = input_path.replace('.wav', '_44100.wav')
+            output_path = input_path.replace('.wav', '_48000.wav')
             
             # Try sox first (lightweight, commonly available on macOS/Linux)
             try:
                 result = subprocess.run(
-                    ['sox', input_path, '-r', '44100', output_path],
+                    ['sox', input_path, '-r', '48000', output_path],
                     capture_output=True,
                     timeout=10,
                     check=True
@@ -125,7 +125,7 @@ class Pyttsx3Adapter:
             # Fallback to ffmpeg
             try:
                 result = subprocess.run(
-                    ['ffmpeg', '-i', input_path, '-ar', '44100', '-y', output_path],
+                    ['ffmpeg', '-i', input_path, '-ar', '48000', '-y', output_path],
                     capture_output=True,
                     timeout=10,
                     check=True
