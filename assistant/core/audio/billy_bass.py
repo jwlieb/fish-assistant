@@ -151,6 +151,10 @@ class BillyBass:
             self.log.warning("BillyBass: Audio file not found: %s", wav_path)
             return
 
+        # Publish UX state "speaking" so body animations trigger
+        # This ensures animations work even if conversation loop isn't running (e.g., REPL mode)
+        await self.bus.publish("ux.state", UXState(state="speaking").dict())
+
         # Cancel any existing task
         if self._current_task and not self._current_task.done():
             self._current_task.cancel()
@@ -175,6 +179,10 @@ class BillyBass:
         except Exception:
             self.log.warning("malformed audio.playback.end event, skipping")
             return
+
+        # Publish UX state "idle" to stop body animations
+        if event.ok:
+            await self.bus.publish("ux.state", UXState(state="idle").dict())
 
         # Stop motor
         self._stop_motor()
@@ -408,6 +416,36 @@ class BillyBass:
         except Exception as e:
             self.log.exception("Error stopping body motor: %s", e)
 
+    async def _listening_animation(self):
+        """
+        Occasional tail flaps while listening/waiting for speech.
+        Creates a more natural, alive appearance.
+        """
+        if not self.enabled or not self._initialized:
+            return
+        
+        try:
+            import random
+            while True:  # Run until cancelled
+                # Wait a random time between flaps (2-5 seconds)
+                wait_time = random.uniform(2.0, 5.0)
+                await asyncio.sleep(wait_time)
+                
+                # Quick tail flap
+                GPIO.output(self.BODY_IN1, GPIO.HIGH)
+                GPIO.output(self.BODY_IN2, GPIO.LOW)
+                PWM.set_duty_cycle(self.BODY_PWM_PIN, 70)
+                await asyncio.sleep(0.2)  # Quick flap
+                
+                # Stop
+                PWM.set_duty_cycle(self.BODY_PWM_PIN, 0)
+        except asyncio.CancelledError:
+            self.stop_body_motor()
+            raise
+        except Exception as e:
+            self.log.exception("Error during listening animation: %s", e)
+            self.stop_body_motor()
+
     async def _on_ux_state(self, payload: dict):
         """Handle UX state changes to trigger body animations."""
         if not self.enabled:
@@ -432,21 +470,21 @@ class BillyBass:
             self.stop_body_motor()
         
         if state == "thinking":
-            # Tail flap during thinking state
-            self.log.debug("Thinking state: triggering tail flap")
-            self._body_task = asyncio.create_task(self.tail_flap(duration_s=0.5, speed=100))
+            # Occasional tail flaps while thinking
+            self.log.debug("Thinking state: starting occasional tail flaps")
+            self._body_task = asyncio.create_task(self._listening_animation())
         elif state == "listening":
-            # Start head turn while listening (continuous)
-            self.log.debug("Listening state: starting head turn")
-            self._body_task = asyncio.create_task(self.head_turn(duration_s=float('inf'), speed=100))
+            # Occasional tail flaps while listening
+            self.log.debug("Listening state: starting occasional tail flaps")
+            self._body_task = asyncio.create_task(self._listening_animation())
         elif state == "speaking":
-            # Continue head turn while speaking (continuous)
-            self.log.debug("Speaking state: continuing head turn")
-            self._body_task = asyncio.create_task(self.head_turn(duration_s=float('inf'), speed=100))
+            # Just turn head and look while speaking (continuous, gentle)
+            self.log.debug("Speaking state: turning head to look")
+            self._body_task = asyncio.create_task(self.head_turn(duration_s=float('inf'), speed=60))
         elif state == "idle":
-            # Stop body motor when idle
-            self.log.debug("Idle state: stopping body motor")
-            self.stop_body_motor()
+            # Flap tail when done speaking, then stop
+            self.log.debug("Idle state: flapping tail, then stopping")
+            self._body_task = asyncio.create_task(self.tail_flap(duration_s=0.4, speed=80))
 
     async def stop(self):
         """Cleanup resources before shutdown."""
