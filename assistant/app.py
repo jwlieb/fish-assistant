@@ -9,12 +9,14 @@ from assistant.core.audio.billy_bass import BillyBass
 from assistant.core.tts.tts import TTS
 from assistant.core.stt.stt import STT
 from assistant.skills.echo import EchoSkill
+from assistant.skills.chat import ChatSkill
 
 
 async def _start_core_components(bus: Bus, stt_adapter, tts_adapter, skip_playback: bool = False) -> None:
     """Internal helper to start core components with given adapters."""
     router = Router(bus)
-    router.register_intent("unknown", "echo")
+    router.register_intent("unknown", "chat")
+    router.register_intent("smalltalk", "chat")
     
     stt = STT(bus, adapter=stt_adapter)
     nlu = NLU(bus)
@@ -22,6 +24,7 @@ async def _start_core_components(bus: Bus, stt_adapter, tts_adapter, skip_playba
     billy_bass = BillyBass(bus, enabled=Config.BILLY_BASS_ENABLED)
     tts = TTS(bus, adapter=tts_adapter)
     echo_skill = EchoSkill(bus)
+    chat_skill = ChatSkill(bus)
 
     await stt.start()
     await nlu.start()
@@ -30,6 +33,7 @@ async def _start_core_components(bus: Bus, stt_adapter, tts_adapter, skip_playba
     await billy_bass.start()
     await tts.start()
     await echo_skill.start()
+    await chat_skill.start()
 
 
 async def start_full_components(bus: Bus) -> None:
@@ -88,7 +92,8 @@ async def start_client_components(bus: Bus) -> None:
     # Create components - client only needs playback and motors
     # STT/TTS are still needed for the pipeline, but they use remote adapters
     router = Router(bus)
-    router.register_intent("unknown", "echo")
+    router.register_intent("unknown", "chat")
+    router.register_intent("smalltalk", "chat")
     
     stt = STT(bus, adapter=stt_adapter)
     nlu = NLU(bus)
@@ -96,6 +101,7 @@ async def start_client_components(bus: Bus) -> None:
     billy_bass = BillyBass(bus, enabled=Config.BILLY_BASS_ENABLED)  # listens on audio.playback.start/end → controls mouth motor
     tts = TTS(bus, adapter=tts_adapter)
     echo_skill = EchoSkill(bus)
+    chat_skill = ChatSkill(bus)
 
     # Subscribe handlers
     await stt.start()
@@ -104,6 +110,7 @@ async def start_client_components(bus: Bus) -> None:
     await billy_bass.start()
     await tts.start()
     await echo_skill.start()
+    await chat_skill.start()
 
 
 async def start_components(bus: Bus) -> None:
