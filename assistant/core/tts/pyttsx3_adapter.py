@@ -118,7 +118,9 @@ class Pyttsx3Adapter:
                         pass
                     return output_path
             except (FileNotFoundError, subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
-                self.log.debug("sox not available or failed: %s", e)
+                self.log.warning("sox not available or failed: %s", e)
+                if isinstance(e, subprocess.CalledProcessError):
+                    self.log.warning("sox stderr: %s", e.stderr.decode() if e.stderr else "none")
             
             # Fallback to ffmpeg
             try:
@@ -140,7 +142,8 @@ class Pyttsx3Adapter:
                 self.log.warning("ffmpeg not available or failed: %s", e)
             
             # If both fail, return original (will likely fail on client but at least we tried)
-            self.log.warning("Neither sox nor ffmpeg available for resampling, returning original file")
+            self.log.error("Neither sox nor ffmpeg available for resampling! Audio will be at %d Hz (may fail on client)", current_sr)
+            self.log.error("Install sox or ffmpeg to enable resampling: brew install sox  (macOS) or apt-get install sox  (Linux)")
             return input_path
             
         except Exception as e:
