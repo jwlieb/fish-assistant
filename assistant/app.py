@@ -17,6 +17,7 @@ async def _start_core_components(bus: Bus, stt_adapter, tts_adapter, skip_playba
     router = Router(bus)
     router.register_intent("unknown", "chat")
     router.register_intent("smalltalk", "chat")
+    router.register_intent("joke", "chat")
     
     stt = STT(bus, adapter=stt_adapter)
     nlu = NLU(bus)
@@ -94,6 +95,7 @@ async def start_client_components(bus: Bus) -> None:
     router = Router(bus)
     router.register_intent("unknown", "chat")
     router.register_intent("smalltalk", "chat")
+    router.register_intent("joke", "chat")
     
     stt = STT(bus, adapter=stt_adapter)
     nlu = NLU(bus)

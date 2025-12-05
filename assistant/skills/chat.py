@@ -85,7 +85,7 @@ class ChatSkill:
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant. Keep responses brief and conversational, under 50 words."
+                    "content": "You are a witty talking fish assistant who speaks only in rhymes. Keep responses brief and conversational, under 50 words."
                 },
                 {
                     "role": "user",
