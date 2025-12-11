@@ -76,6 +76,7 @@ class BillyBass:
         self._initialized = False
         self._current_task: Optional[asyncio.Task] = None
         self._body_task: Optional[asyncio.Task] = None
+        self._periodic_flap_task: Optional[asyncio.Task] = None
 
         if not BBIO_AVAILABLE:
             self.log.warning(
@@ -102,6 +103,9 @@ class BillyBass:
         self.bus.subscribe("audio.playback.end", self._on_playback_end)
         self.bus.subscribe("ux.state", self._on_ux_state)
         self.log.info("BillyBass: Subscribed to events, ready to control motors")
+        
+        # Start periodic tail flapping when idle
+        self._periodic_flap_task = asyncio.create_task(self._periodic_idle_flap())
 
     def _initialize_hardware(self):
         """Initialize GPIO and PWM pins."""
@@ -446,6 +450,47 @@ class BillyBass:
             self.log.exception("Error during listening animation: %s", e)
             self.stop_body_motor()
 
+    async def _periodic_idle_flap(self):
+        """
+        Periodic tail flaps when idle (after client boots).
+        Flaps every few seconds to keep the fish looking alive.
+        Only flaps when no other body animation is active.
+        """
+        if not self.enabled or not self._initialized:
+            return
+        
+        try:
+            import random
+            # Initial delay before first flap (let system settle)
+            await asyncio.sleep(3.0)
+            
+            while True:  # Run until cancelled
+                # Only flap if no active body task (not speaking, thinking, or listening)
+                if self._body_task is None or self._body_task.done():
+                    # Wait a random time between flaps (3-7 seconds)
+                    wait_time = random.uniform(3.0, 7.0)
+                    await asyncio.sleep(wait_time)
+                    
+                    # Double-check we're still idle before flapping
+                    if self._body_task is None or self._body_task.done():
+                        # Gentle tail flap
+                        GPIO.output(self.BODY_IN1, GPIO.HIGH)
+                        GPIO.output(self.BODY_IN2, GPIO.LOW)
+                        PWM.set_duty_cycle(self.BODY_PWM_PIN, 60)
+                        await asyncio.sleep(0.3)  # Gentle flap duration
+                        
+                        # Stop
+                        PWM.set_duty_cycle(self.BODY_PWM_PIN, 0)
+                else:
+                    # Wait a bit before checking again if body task is active
+                    await asyncio.sleep(1.0)
+        except asyncio.CancelledError:
+            self.stop_body_motor()
+            raise
+        except Exception as e:
+            self.log.exception("Error during periodic idle flap: %s", e)
+            self.stop_body_motor()
+
     async def _on_ux_state(self, payload: dict):
         """Handle UX state changes to trigger body animations."""
         if not self.enabled:
@@ -482,9 +527,9 @@ class BillyBass:
             self.log.debug("Speaking state: turning head to look")
             self._body_task = asyncio.create_task(self.head_turn(duration_s=float('inf'), speed=60))
         elif state == "idle":
-            # Flap tail when done speaking, then stop
+            # Flap tail when done speaking, then stop (slower, more gentle)
             self.log.debug("Idle state: flapping tail, then stopping")
-            self._body_task = asyncio.create_task(self.tail_flap(duration_s=0.4, speed=80))
+            self._body_task = asyncio.create_task(self.tail_flap(duration_s=0.7, speed=60))
 
     async def stop(self):
         """Cleanup resources before shutdown."""
@@ -506,6 +551,13 @@ class BillyBass:
             self._body_task.cancel()
             try:
                 await self._body_task
+            except asyncio.CancelledError:
+                pass
+        
+        if self._periodic_flap_task and not self._periodic_flap_task.done():
+            self._periodic_flap_task.cancel()
+            try:
+                await self._periodic_flap_task
             except asyncio.CancelledError:
                 pass
 
