@@ -14,19 +14,27 @@ class Bus:
     
     def subscribe(self, topic: str, fn: callable):
         self._subs[topic].append(fn)
-        self._log.debug("subscribe: %s -> %s", topic, getattr(fn, "__name__", str(fn)))
+        subscriber_name = getattr(fn, "__name__", str(fn))
+        self._log.info("subscribe: %s -> %s (total subscribers: %d)", topic, subscriber_name, len(self._subs[topic]))
 
     async def publish(self, topic, payload):
-        self._log.info("publish: %s %s", topic, list(payload.keys()) if isinstance(payload, dict) else type(payload).__name__)
+        subscribers = self._subs.get(topic, [])
+        self._log.info("publish: %s -> %d subscribers %s", topic, len(subscribers), list(payload.keys()) if isinstance(payload, dict) else type(payload).__name__)
+        if not subscribers:
+            self._log.warning("publish: No subscribers for topic %s", topic)
         tasks = []
-        for fn in self._subs.get(topic, []):
+        for fn in subscribers:
             try:
+                self._log.debug("publish: Scheduling subscriber %s for topic %s", getattr(fn, "__name__", str(fn)), topic)
                 tasks.append(asyncio.create_task(fn(payload)))
             except Exception as e:
                 self._log.exception("error scheduling subscriber for %s: %s", topic, e)
                 
         # Wait briefly for all direct subscribers to START their work
-        await asyncio.gather(*tasks, return_exceptions=True) 
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                self._log.error("publish: Subscriber %d raised exception: %s", i, result, exc_info=result) 
 
     def clear(self):
         self._subs.clear()

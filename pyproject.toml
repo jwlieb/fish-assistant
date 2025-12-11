@@ -1,9 +1,13 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "fish-assistant"
 version = "0.1.0"
 description = "Personal assistant that may or may not be housed in a talking fish"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.7"
 
 # Core dependencies (always needed)
 dependencies = [

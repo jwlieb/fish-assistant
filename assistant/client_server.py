@@ -99,10 +99,11 @@ def create_client_app(bus: Bus, lifespan=None) -> FastAPI:
                 duration_s = 0.01  # minimal default to satisfy contract
             
             # Publish TTSAudio event to trigger playback
-            logger.info("Client: Publishing tts.audio event to bus (duration=%.2fs)", duration_s)
+            logger.info("Client: Publishing tts.audio event to bus (duration=%.2fs, path=%s)", duration_s, temp_path)
             audio_event = TTSAudio(wav_path=temp_path, duration_s=duration_s)
+            logger.info("Client: Created TTSAudio event: topic=%s, wav_path=%s", audio_event.topic, audio_event.wav_path)
             await bus.publish(audio_event.topic, audio_event.dict())
-            logger.info("Client: Published tts.audio event successfully")
+            logger.info("Client: Published tts.audio event successfully (bus.publish completed)")
             
             return {
                 "status": "ok",
