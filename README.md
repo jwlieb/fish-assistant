@@ -154,10 +154,10 @@ audio.recorded ─► STT (whisper) ─► stt.transcript ─► NLU (rules) ─
 ### Server-Client Mode (Distributed)
 ```
 ┌─────────────────────────────────┐         ┌──────────────────────────────────┐
-│  Server (Laptop)                │         │  Client (PocketBeagle)            │
+│  Server (Laptop)                │         │  Client (PocketBeagle)           │
 │                                 │         │                                  │
-│  Microphone ─► STT ─► NLU ─►   │  HTTP   │  HTTP                            │
-│  Skills ─► TTS ─► [Push Audio] ─┼────────►│  /api/audio/play ─► Playback ─► │
+│  Microphone ─► STT ─► NLU ─►    │  HTTP   │  HTTP                            │
+│  Skills ─► TTS ─► [Push Audio] ─┼────────►│  /api/audio/play ─► Playback ─►  │
 │                                 │         │  Billy Bass Motors               │
 └─────────────────────────────────┘         └──────────────────────────────────┘
 ```
@@ -165,6 +165,20 @@ audio.recorded ─► STT (whisper) ─► stt.transcript ─► NLU (rules) ─
 - Contracts are the stable surface; adapters are replaceable.
 - `corr_id` traces a single interaction across all stages.
 - Server-client split enables heavy computation on laptop, lightweight playback on PocketBeagle.
+
+### Laptop-Beagle Communication
+
+This project implements a distributed architecture pattern that separates compute-intensive tasks (running on a laptop/server) from real-time hardware control (running on a PocketBeagle). 
+
+**📖 See [POCKETBEAGLE_COMMUNICATION.md](POCKETBEAGLE_COMMUNICATION.md) for a complete how-to guide** covering:
+- Setting up FastAPI server endpoints
+- Creating remote adapters with httpx
+- Bidirectional HTTP communication (request-response and push)
+- Error handling and retry logic
+- Configuration patterns
+- Real-world examples for any file/data type
+
+This pattern is useful for any PocketBeagle project that needs to offload heavy processing while maintaining low-latency hardware interaction.
 
 ---
 
@@ -278,10 +292,8 @@ See [TESTING_CHECKLIST.md](TESTING_CHECKLIST.md) for comprehensive test scenario
 ## Documentation
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Fast setup guide for server-client mode
-- **[DEMO.md](DEMO.md)** - Complete demo guide with hardware wiring
 - **[CONFIGURATION.md](CONFIGURATION.md)** - Detailed configuration options
-- **[ARCHITECTURE_POCKETBEAGLE.md](ARCHITECTURE_POCKETBEAGLE.md)** - Architecture decisions
-- **[TESTING_CHECKLIST.md](TESTING_CHECKLIST.md)** - Comprehensive testing guide
+- **[POCKETBEAGLE_COMMUNICATION.md](POCKETBEAGLE_COMMUNICATION.md)** - How-to guide for laptop-Beagle communication (generalized for any project)
 
 ## Development notes
 
@@ -294,28 +306,6 @@ See [TESTING_CHECKLIST.md](TESTING_CHECKLIST.md) for comprehensive test scenario
   ```python
   router.register_intent("meteo", "weather")
   ```
-
----
-
-## Roadmap
-
-1. Core runtime ✅  
-2. Audio I/O (local TTS + playback) ✅  
-3. STT integration (Whisper) ✅  
-4. Minimal NLU (rules-based) ✅  
-5. Server-client architecture ✅  
-6. Conversation loop with VAD ✅  
-7. Billy Bass motor control ✅  
-8. Skills: time, timer, joke, weather(mock), music(stub)  
-9. Conversation memory/context tracking  
-10. UX & controls: PTT/VAD, state broadcasts  
-11. Persistence & config: KV, typed config, structured logging  
-12. Packaging & deploy: systemd service, device setup doc  
-13. Privacy & safety: mic kill switch, log redaction
-
-Target MVP feel:
-- Query→speak P50 < 800 ms on a laptop (rules NLU, local TTS).
-- Playback start < 150 ms after `tts.audio`.
 
 ---
 
