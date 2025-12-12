@@ -2,21 +2,21 @@ import typer
 import asyncio
 from pathlib import Path
 from typing import Optional
-from assistant.core.audio.devices import list_input_devices, get_default_input_index
-from assistant.core.audio.recorder import record_wav, playback_wav
-from assistant.app import main as app_main
 
 app = typer.Typer(help="Fish Assistant CLI")
 
 @app.command("audio:list")
 def audio_list():
     """List input audio devices."""
+    from assistant.core.audio.devices import list_input_devices
     for idx, name in list_input_devices():
         typer.echo(f"{idx:>2}  {name}")
 
 @app.command("audio:test")
 def audio_test(duration: float = typer.Option(5.0, "--duration", "-d"), device: Optional[int] = None):
     """Record for DURATION seconds and play back."""
+    from assistant.core.audio.devices import get_default_input_index
+    from assistant.core.audio.recorder import record_wav, playback_wav
     if device is None:
         device = get_default_input_index()
     res = record_wav(duration_s=duration, device_index=device)
@@ -39,6 +39,8 @@ def demo_record_and_transcribe(
     playback: bool = True,
 ):
     """Record, (optionally) play back, then transcribe and print."""
+    from assistant.core.audio.devices import get_default_input_index
+    from assistant.core.audio.recorder import record_wav, playback_wav
     from assistant.core.stt.whisper_adapter import transcribe_file
     if device is None:
         device = get_default_input_index()
@@ -56,11 +58,15 @@ def test_pipeline(
     model_size: str = "tiny",
 ):
     """Test full pipeline: record audio → STT → NLU → Skills → TTS → Playback."""
+    from assistant.core.audio.devices import get_default_input_index
+    from assistant.core.audio.recorder import record_wav
+    
     async def _test():
         from assistant.core.bus import Bus
         from assistant.core.contracts import AudioRecorded
         from assistant.app import start_components
         
+        nonlocal device
         bus = Bus()
         await start_components(bus)
         
@@ -83,6 +89,7 @@ def test_pipeline(
 @app.command("run")
 def run_assistant():
     """Run the Fish Assistant in interactive mode."""
+    from assistant.app import main as app_main
     asyncio.run(app_main())
 
 @app.command("converse")
@@ -90,11 +97,14 @@ def converse(
     device: Optional[int] = None,
 ):
     """Start continuous conversation loop with VAD (hands-free mode)."""
+    from assistant.core.audio.devices import get_default_input_index
+    
     async def _converse():
         from assistant.core.bus import Bus
         from assistant.core.ux.conversation_loop import ConversationLoop
         from assistant.app import start_components
         
+        nonlocal device
         bus = Bus()
         
         # Start all components (STT, NLU, TTS, Playback, Skills)
@@ -131,6 +141,7 @@ def server(
     import logging
     import uvicorn
     from contextlib import asynccontextmanager
+    from assistant.core.audio.devices import get_default_input_index
     from assistant.core.config import Config
     from assistant.core.bus import Bus
     from assistant.core.ux.conversation_loop import ConversationLoop

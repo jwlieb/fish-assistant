@@ -12,8 +12,12 @@ Requires Adafruit_BBIO library (BeagleBone Black specific).
 import asyncio
 import logging
 import os
-import numpy as np
 import soundfile as sf
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
 from typing import Optional
 from ..contracts import PlaybackStart, PlaybackEnd, UXState
 
