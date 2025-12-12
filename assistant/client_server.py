@@ -7,8 +7,13 @@ Allows server to push audio files to client for playback.
 import logging
 import tempfile
 import os
-import soundfile as sf
+import wave
 from typing import Optional
+
+try:
+    import soundfile as sf
+except ImportError:
+    sf = None
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from assistant.core.bus import Bus
@@ -91,12 +96,16 @@ def create_client_app(bus: Bus, lifespan=None) -> FastAPI:
             )
             
             # Get duration from audio file
+            duration_s = 0.01
             try:
-                info = sf.info(temp_path)
-                duration_s = info.frames / float(info.samplerate) if info.samplerate else 0.01
+                if sf:
+                    info = sf.info(temp_path)
+                    duration_s = info.frames / float(info.samplerate) if info.samplerate else 0.01
+                else:
+                    with wave.open(temp_path, 'rb') as wf:
+                        duration_s = wf.getnframes() / float(wf.getframerate())
             except Exception as e:
                 logger.warning("Could not read audio duration: %s", e)
-                duration_s = 0.01  # minimal default to satisfy contract
             
             # Publish TTSAudio event to trigger playback
             logger.info("Client: Publishing tts.audio event to bus (duration=%.2fs, path=%s)", duration_s, temp_path)

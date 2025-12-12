@@ -1,7 +1,11 @@
 import asyncio
 import os
 import logging
-import soundfile as sf
+
+try:
+    import soundfile as sf
+except ImportError:
+    sf = None
 from ..contracts import TTSAudio, PlaybackStart, PlaybackEnd, same_trace
 from .devices import get_default_output_index, list_output_devices
 from typing import Optional
@@ -45,7 +49,11 @@ class Playback:
         self.log.info("Playback: Received tts.audio event (payload keys: %s)", list(payload.keys()) if isinstance(payload, dict) else "not a dict")
         
         if not SD_AVAILABLE:
-            self.log.error("Playback: sounddevice not available, cannot play audio. Check if sounddevice imported successfully.")
+            self.log.error("Playback: sounddevice not available, cannot play audio.")
+            return
+        
+        if sf is None:
+            self.log.error("Playback: soundfile not available, cannot play audio.")
             return
         
         self.log.info("Playback: sounddevice is available, proceeding with playback")
