@@ -19,8 +19,9 @@ dependencies = [
 [project.optional-dependencies]
 # Client mode dependencies (PocketBeagle - minimal footprint)
 # Note: Using uvicorn (not uvicorn[standard]) to avoid C extension compilation on ARM
+# Note: numpy<2.0 required for older glibc on PocketBeagle (Debian 11 has glibc 2.31, numpy 2.x needs 2.34+)
 client = [
-    "numpy>=2.1.1",           # billy_bass audio processing
+    "numpy>=1.24.0,<2.0.0",   # billy_bass audio processing (1.x for glibc compat)
     "sounddevice>=0.5.2",     # audio playback
     "soundfile>=0.13.1",      # audio file handling (playback, billy_bass, client_server)
     "fastapi>=0.104.0",       # client HTTP server
