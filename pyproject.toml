@@ -26,6 +26,7 @@ client = [
     "fastapi>=0.104.0",       # client HTTP server
     "uvicorn>=0.24.0",        # client HTTP server (pure Python, no C extensions)
     "python-multipart>=0.0.6",  # Required for FastAPI form data (file uploads)
+    "Adafruit_BBIO>=1.2.0",   # GPIO/PWM control for BeagleBone (PocketBeagle)
 ]
 
 # Server mode dependencies (laptop - adds STT/TTS processing)
