@@ -277,7 +277,7 @@ class BillyBass:
         finally:
             self._stop_motor()
 
-    def _move_mouth(self, audio_chunk: np.ndarray):
+    def _move_mouth(self, audio_chunk):
         """
         Calculate volume from audio chunk and set PWM duty cycle.
         
