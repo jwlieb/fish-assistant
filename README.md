@@ -90,6 +90,20 @@ fish audio:list             # List audio devices
 fish demo:record-and-transcribe --duration 5  # Record and transcribe
 ```
 
+### Auto-start on Boot (PocketBeagle)
+
+To automatically start the client on boot, use the provided `scripts/on-boot.sh` script with cron:
+
+```bash
+# Edit root crontab
+sudo crontab -e
+
+# Add this line (creates log directory and runs script after 30s delay)
+@reboot sleep 30 && bash /var/lib/cloud9/fish-assistant/scripts/on-boot.sh > /var/lib/cloud9/logs/cronlog 2>&1
+```
+
+The 30-second delay ensures network services are ready before starting the client.
+
 Expected event flow (full pipeline):
 ```
 audio.recorded → stt.transcript → nlu.intent → skill.request → skill.response → tts.request → tts.audio → audio.playback.start → audio.playback.end
