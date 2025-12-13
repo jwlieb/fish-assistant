@@ -6,6 +6,11 @@ Local-first with small, swappable adapters and a simple event bus.
 
 For hardware setup, go here: https://www.hackster.io/jwlieb/big-mouth-billy-bass-personal-assistant-a23f66
 
+
+
+https://github.com/user-attachments/assets/d520398f-5275-4b25-91a7-09d7ee5b221e
+
+
 ---
 
 ## Status
